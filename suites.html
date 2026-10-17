@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="googlebot" content="noindex, nofollow" />
+  <title>Royal Caribbean Suites Tracker | Sea, Sky &amp; Star Class</title>
+  <link rel="stylesheet" href="styles.css?v=9" />
+</head>
+<body data-mode="suites">
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <a href="index.html" class="brand-icon" title="Back to Landing Page">👑</a>
+        <div>
+          <h1>Royal Caribbean Suites Tracker</h1>
+          <p class="subtitle" id="meta-subtitle">Loading suite catalog across 10 US &amp; Caribbean ports...</p>
+        </div>
+      </div>
+      <nav class="top-nav" aria-label="Tracker Switcher">
+        <a href="index.html" class="nav-pill">🏠 Home</a>
+        <a href="suites.html" class="nav-pill active">👑 Suites</a>
+        <a href="staterooms.html" class="nav-pill">🚢 Staterooms</a>
+      </nav>
+      <div class="header-meta">
+        <span class="pill pill-outline" id="party-pill">Party: --</span>
+        <span class="pill pill-muted" id="updated-pill">Updated: --</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Summary KPI Cards -->
+    <section class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Matching Itineraries</span>
+        <strong class="kpi-value" id="kpi-itineraries">--</strong>
+        <span class="kpi-sub" id="kpi-scanned">with available suites</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Matching Suite Sailings</span>
+        <strong class="kpi-value" id="kpi-sailings">--</strong>
+        <span class="kpi-sub" id="kpi-sailings-sub">individual departure dates</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Kids Sail Free Promos</span>
+        <strong class="kpi-value kpi-promo" id="kpi-promos">--</strong>
+        <span class="kpi-sub" id="kpi-holidays">-- holiday/blackout dates</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Lowest Suite Total</span>
+        <strong class="kpi-value kpi-accent" id="kpi-lowest">--</strong>
+        <span class="kpi-sub" id="kpi-lowest-sub">incl. taxes &amp; fees</span>
+      </div>
+    </section>
+
+    <!-- Interactive Filter & Family Size Panel -->
+    <section class="filter-panel" id="filter-panel" aria-label="Filters and Party Size">
+      <button type="button" class="mobile-filter-toggle" id="mobile-filter-toggle" aria-expanded="true">
+        <span>⚙️ Party Size, Suite Tiers &amp; Filters</span>
+        <span class="mobile-filter-chevron" id="mobile-filter-chevron">▲ Hide</span>
+      </button>
+      <div class="filter-collapsible-body" id="filter-collapsible-body">
+        <div class="filter-panel-top">
+          <!-- Family / Party Size Widget -->
+          <div class="party-box">
+            <div class="party-box-header">
+              <span class="filter-section-title">👨‍👩‍👧‍👦 Family / Party Size</span>
+              <div class="party-presets">
+                <button type="button" class="preset-chip" data-adults="2" data-children="0">2 Adults</button>
+                <button type="button" class="preset-chip" data-adults="2" data-children="1">2A + 1 Kid</button>
+                <button type="button" class="preset-chip" data-adults="2" data-children="2">2A + 2 Kids</button>
+              </div>
+            </div>
+            <div class="party-controls">
+              <div class="stepper-group">
+                <span class="stepper-label">Adults <small>(13+)</small></span>
+                <div class="stepper">
+                  <button type="button" class="step-btn" id="adults-minus" aria-label="Decrease adults">&minus;</button>
+                  <span class="step-value" id="adults-val">2</span>
+                  <button type="button" class="step-btn" id="adults-plus" aria-label="Increase adults">+</button>
+                </div>
+              </div>
+              <div class="stepper-group">
+                <span class="stepper-label">Children <small>(&le;12)</small></span>
+                <div class="stepper">
+                  <button type="button" class="step-btn" id="children-minus" aria-label="Decrease children">&minus;</button>
+                  <span class="step-value" id="children-val">2</span>
+                  <button type="button" class="step-btn" id="children-plus" aria-label="Increase children">+</button>
+                </div>
+              </div>
+              <div class="party-note" id="party-note">
+                All-in cabin total dynamically includes taxes &amp; fees for all guests.
+              </div>
+            </div>
+          </div>
+
+          <!-- Royal Suite Class Amenities Checkboxes -->
+          <div class="tier-box">
+            <div class="tier-box-header">
+              <span class="filter-section-title">✨ Suite Class &amp; Amenities (Assigned Rooms by Default)</span>
+              <span class="tier-box-hint">Assigned rooms guarantee Sea/Sky/Star perks &bull; Check &ldquo;We Choose Your Suite&rdquo; only if you want unassigned Guarantee rates</span>
+            </div>
+            <div class="tier-checkbox-grid">
+              <label class="tier-check-card tier-card-sea">
+                <input type="checkbox" class="tier-checkbox" value="Sea" checked />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">🌊 Sea Class <span class="tier-count" id="tier-count-Sea"></span></div>
+                  <div class="tier-check-desc">Surfside Family (SF) &amp; Junior Suite (JS) &bull; Coastal Kitchen (Dinner), Luxury Bedding</div>
+                </div>
+              </label>
+
+              <label class="tier-check-card tier-card-sky">
+                <input type="checkbox" class="tier-checkbox" value="Sky" checked />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">☁️ Sky Class <span class="tier-count" id="tier-count-Sky"></span></div>
+                  <div class="tier-check-desc">Sky Junior (JY), Panoramic (VP), Grand (GS) &amp; Owner&rsquo;s &bull; All-Day Coastal Kitchen, Suite Lounge, VOOM Wi-Fi</div>
+                </div>
+              </label>
+
+              <label class="tier-check-card tier-card-star">
+                <input type="checkbox" class="tier-checkbox" value="Star" checked />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">⭐ Star Class <span class="tier-count" id="tier-count-Star"></span></div>
+                  <div class="tier-check-desc">Icon Loft (IL), Royal Loft (RL) &amp; Ultimate Family (UL) &bull; Royal Genie, Free Specialty Dining &amp; Drinks</div>
+                </div>
+              </label>
+
+              <label class="tier-check-card tier-card-standard">
+                <input type="checkbox" class="tier-checkbox" value="Standard" checked />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">⚓ Standard Suites <span class="tier-count" id="tier-count-Standard"></span></div>
+                  <div class="tier-check-desc">Voyager, Freedom, Radiance &amp; Vision Class &bull; Priority Boarding, Concierge Club (GS+), Double Points</div>
+                </div>
+              </label>
+
+              <label class="tier-check-card tier-card-guarantee">
+                <input type="checkbox" class="tier-checkbox" value="Guarantee" />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">🎲 We Choose Your Suite (WS) <span class="tier-count" id="tier-count-Guarantee"></span></div>
+                  <div class="tier-check-desc">Unassigned Guarantee Rate &bull; Royal assigns room prior to sailing (minimum Sea Class; no Sky/Star perks)</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Controls Grid -->
+        <div class="filter-grid">
+          <div class="filter-field">
+            <label for="filter-ship-class">Ship Class</label>
+            <select id="filter-ship-class">
+              <option value="all">All Ship Classes</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-ship">Ship</label>
+            <select id="filter-ship">
+              <option value="all">All Ships</option>
+            </select>
+          </div>
+
+          <div class="filter-field port-multiselect-field" id="port-multiselect">
+            <label for="port-dropdown-btn">Departure Ports (Multi-Select)</label>
+            <button type="button" class="multiselect-trigger" id="port-dropdown-btn" aria-expanded="false">
+              <span class="multiselect-label" id="port-dropdown-label">3 Ports (FLL, MIA, PCN)</span>
+              <span class="multiselect-caret">&#9662;</span>
+            </button>
+            <div class="multiselect-menu hidden" id="port-dropdown-menu">
+              <div class="multiselect-actions">
+                <button type="button" class="ms-action-btn" data-port-preset="all">All Ports</button>
+                <button type="button" class="ms-action-btn" data-port-preset="fl">Florida (4)</button>
+                <button type="button" class="ms-action-btn" data-port-preset="orig3">FLL/MIA/PCN</button>
+                <button type="button" class="ms-action-btn" data-port-preset="none">Clear</button>
+              </div>
+              <div class="multiselect-list" id="port-options-list"></div>
+              <div class="multiselect-add-port">
+                <div class="ms-add-row">
+                  <input type="text" id="add-port-input" placeholder="Add port code (e.g. TPA, GAL, SEA)" maxlength="5" />
+                  <button type="button" id="add-port-btn" class="ms-add-btn">+ Add</button>
+                </div>
+                <div class="ms-add-hint" id="add-port-hint">
+                  Included: FLL, MIA, PCN, TPA, GAL, BYE, SJU, MSY, BWI, LAX
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-nights">Length (Nights)</label>
+            <select id="filter-nights">
+              <option value="all">Any Length</option>
+              <option value="short">3–4 Nights (Weekend/Short)</option>
+              <option value="medium">5–6 Nights</option>
+              <option value="week">7 Nights</option>
+              <option value="long">8+ Nights</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-date-start">Sail Date From</label>
+            <input type="date" id="filter-date-start" />
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-date-end">Sail Date To</label>
+            <input type="date" id="filter-date-end" />
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-rate">Promo / Rate Type</label>
+            <select id="filter-rate">
+              <option value="all">All Rates (Promo &amp; Holiday)</option>
+              <option value="promo">🟢 Kids Sail Free Promos Only</option>
+              <option value="holiday">🟠 Holiday / Blackout Only</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="filter-search">Search Route / Ship</label>
+            <input type="search" id="filter-search" placeholder="e.g. Icon, Perfect Day, Southern..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-footer">
+        <div class="active-filters-summary" id="active-filters-summary">Showing all available suite sailings</div>
+        <div class="filter-footer-actions">
+          <span class="saved-indicator" id="saved-prefs-badge" title="Your filters, ports, and party size are saved in your browser's localStorage">💾 Filters saved</span>
+          <button type="button" class="reset-btn" id="reset-filters-btn">Reset All Filters</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View Switcher & Quick Sort Bar -->
+    <section class="toolbar">
+      <div class="view-tabs" role="tablist">
+        <button class="tab-btn active" data-view="itineraries" id="tab-itineraries">
+          Itineraries (<span id="count-itineraries">0</span>)
+        </button>
+        <button class="tab-btn" data-view="sailings" id="tab-sailings">
+          Individual Sailings (<span id="count-sailings">0</span>)
+        </button>
+      </div>
+
+      <div class="toolbar-actions">
+        <label class="sort-label" for="sort-select">Sort by:</label>
+        <select id="sort-select" class="sort-select">
+          <option value="total_asc">Total Cabin Price: Low to High</option>
+          <option value="total_desc">Total Cabin Price: High to Low</option>
+          <option value="pp_asc">Per Guest Price: Low to High</option>
+          <option value="ppn_asc">Price / Night: Low to High</option>
+          <option value="date_asc">Sail Date: Soonest First</option>
+          <option value="date_desc">Sail Date: Latest First</option>
+          <option value="nights_desc">Length: Longest First</option>
+          <option value="nights_asc">Length: Shortest First</option>
+          <option value="ship_asc">Ship Name (A–Z)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Status / Error Banner -->
+    <div id="status-banner" class="status-banner hidden"></div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="empty-state hidden">
+      <h3>No suite sailings match your current filters</h3>
+      <p>Try checking more Suite Class tiers (Sea / Sky / Star), widening your date range, or clicking Reset All Filters.</p>
+    </div>
+
+    <!-- VIEW 1: All Itineraries Grid/List -->
+    <section id="view-itineraries" class="view-section">
+      <div id="itineraries-container" class="itineraries-list"></div>
+    </section>
+
+    <!-- VIEW 2: All Individual Suite Sailings Table -->
+    <section id="view-sailings" class="view-section hidden">
+      <div class="table-card">
+        <div class="table-responsive">
+          <table class="sailings-table sailings-table-all">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="date">Sail Date <span class="sort-indicator"></span></th>
+                <th class="sortable" data-sort="ship">Ship &amp; Class <span class="sort-indicator"></span></th>
+                <th>Itinerary</th>
+                <th>Port</th>
+                <th class="sortable" data-sort="nights">Nights <span class="sort-indicator"></span></th>
+                <th>Suite Class &amp; Specific Room</th>
+                <th class="num sortable" data-sort="pp">Per Guest <span class="sort-indicator"></span></th>
+                <th class="num sortable" data-sort="total">Total w/ Taxes <span class="sort-indicator"></span></th>
+                <th class="num sortable" data-sort="ppn">Per Night <span class="sort-indicator"></span></th>
+                <th>Promo / Rate Status</th>
+              </tr>
+            </thead>
+            <tbody id="sailings-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Powered by Royal Caribbean GraphQL Suite Tracker &bull; <a href="index.html" style="color:var(--accent);text-decoration:none">Home</a> &bull; <a href="staterooms.html" style="color:var(--accent);text-decoration:none">Switch to Regular Staterooms</a></p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=9"></script>
+</body>
+</html>
+

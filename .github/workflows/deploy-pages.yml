@@ -1,0 +1,61 @@
+name: Update Prices & Deploy GitHub Pages
+
+on:
+  push:
+    branches: ["main", "master"]
+  schedule:
+    # Refresh suite & stateroom prices every 12 hours
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for scheduled or manual price refresh)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Refresh Suites + Staterooms catalogs
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: |
+          pip install curl_cffi
+          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
+          python enrich_subtypes.py
+          python fetch_staterooms.py
+
+      - name: Assemble clean static site bundle
+        run: |
+          mkdir -p _site/data
+          cp index.html suites.html staterooms.html styles.css app.js robots.txt .nojekyll _site/
+          cp data/suites.json data/staterooms.json _site/data/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload static site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
