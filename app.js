@@ -82,7 +82,7 @@ function saveStateToStorage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     const badge = document.getElementById("saved-prefs-badge");
     if (badge) {
-      badge.textContent = "💾 Filters saved";
+      badge.textContent = "Filters saved";
     }
   } catch (err) {
     console.warn("Could not save filters to localStorage:", err);
@@ -184,14 +184,14 @@ function getTierDisplayLabel(tierKey) {
 
 function getTierBadgeHtml(tierKey, roomName = "") {
   const icons = {
-    Sea: "🌊 Sea Class",
-    Sky: "☁️ Sky Class",
-    Star: "⭐ Star Class",
-    Standard: "⚓ Standard Suite",
-    Guarantee: "🎲 Suite Guarantee (WS)",
-    Interior: "🛏️ Interior",
-    OceanView: "🪟 Ocean View",
-    Balcony: "🌊 Balcony",
+    Sea: "Sea Class",
+    Sky: "Sky Class",
+    Star: "Star Class",
+    Standard: "Standard Suite",
+    Guarantee: "Suite Guarantee (WS)",
+    Interior: "Interior",
+    OceanView: "Ocean View",
+    Balcony: "Balcony",
   };
   const clsMap = {
     Sea: "badge-tier-sea",
@@ -226,10 +226,10 @@ function getSuiteTierCellHtml(sailing) {
     <div class="suite-cell-header">
       ${getTierBadgeHtml(tierKey)}
       <span class="suite-lead-room" title="Entry-level room for this category price">${escapeHtml(roomName)}</span>
-      ${isLive ? `<span class="live-price-tag" title="Exact room price verified from Royal Caribbean">${IS_STATEROOMS ? "✓ Live Rate" : "✓ Live Room Price"}</span>` : ""}
+      ${isLive ? `<span class="live-price-tag" title="Exact room price verified from Royal Caribbean">${IS_STATEROOMS ? "Live Rate" : "Live Room Price"}</span>` : ""}
     </div>
     ${otherRooms ? `<span class="suite-other-rooms">${otherPrefix}</span>` : ""}
-    <span class="amenities-sub">✨ ${escapeHtml(amenities)}</span>
+    <span class="amenities-sub">${escapeHtml(amenities)}</span>
   `;
 }
 
@@ -928,9 +928,9 @@ function renderItinerariesView(itineraries) {
               </div>
               <div class="itin-title">${escapeHtml(itin.ship)} &mdash; ${escapeHtml(itin.itinerary_name)}</div>
               <div class="itin-meta">
-                <span>📅 <strong>${itin.sailing_count}</strong> matching departure${itin.sailing_count !== 1 ? "s" : ""} (${escapeHtml(firstDate)} to ${escapeHtml(lastDate)})</span>
-                <span>🟢 <strong>${itin.promo_count}</strong> Kids Sail Free promo date${itin.promo_count !== 1 ? "s" : ""}</span>
-                <span>✨ ${escapeHtml(itin.amenities)}</span>
+                <span><strong>${itin.sailing_count}</strong> matching departure${itin.sailing_count !== 1 ? "s" : ""} (${escapeHtml(firstDate)} to ${escapeHtml(lastDate)})</span>
+                <span><strong>${itin.promo_count}</strong> Kids Sail Free promo date${itin.promo_count !== 1 ? "s" : ""}</span>
+                <span>${escapeHtml(itin.amenities)}</span>
               </div>
             </div>
             <div class="itin-pricing-box">

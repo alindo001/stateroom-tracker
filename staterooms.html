@@ -6,22 +6,21 @@
   <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta name="googlebot" content="noindex, nofollow" />
   <title>Stateroom Tracker | Royal Caribbean Interior, Ocean View &amp; Balcony</title>
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body data-mode="staterooms">
   <header class="site-header">
     <div class="container header-inner">
       <div class="brand">
-        <a href="index.html" class="brand-icon" title="Back to Landing Page">🚢</a>
         <div>
           <h1>Royal Caribbean Stateroom Tracker</h1>
           <p class="subtitle" id="meta-subtitle">Loading Interior, Ocean View &amp; Balcony staterooms across 10 ports...</p>
         </div>
       </div>
       <nav class="top-nav" aria-label="Tracker Switcher">
-        <a href="index.html" class="nav-pill">🏠 Home</a>
-        <a href="suites.html" class="nav-pill">👑 Suites</a>
-        <a href="staterooms.html" class="nav-pill active">🚢 Staterooms</a>
+        <a href="index.html" class="nav-pill">Home</a>
+        <a href="suites.html" class="nav-pill">Suites</a>
+        <a href="staterooms.html" class="nav-pill active">Staterooms</a>
       </nav>
       <div class="header-meta">
         <span class="pill pill-outline" id="party-pill">Party: --</span>
@@ -58,7 +57,7 @@
     <!-- Interactive Filter & Family Size Panel -->
     <section class="filter-panel" id="filter-panel" aria-label="Filters and Party Size">
       <button type="button" class="mobile-filter-toggle" id="mobile-filter-toggle" aria-expanded="true">
-        <span>⚙️ Party Size, Stateroom Types &amp; Filters</span>
+        <span>Party Size, Stateroom Types &amp; Filters</span>
         <span class="mobile-filter-chevron" id="mobile-filter-chevron">▲ Hide</span>
       </button>
       <div class="filter-collapsible-body" id="filter-collapsible-body">
@@ -66,7 +65,7 @@
           <!-- Family / Party Size Widget -->
           <div class="party-box">
             <div class="party-box-header">
-              <span class="filter-section-title">👨‍👩‍👧‍👦 Family / Party Size</span>
+              <span class="filter-section-title">Family / Party Size</span>
               <div class="party-presets">
                 <button type="button" class="preset-chip" data-adults="2" data-children="0">2 Adults</button>
                 <button type="button" class="preset-chip" data-adults="2" data-children="1">2A + 1 Kid</button>
@@ -99,14 +98,14 @@
           <!-- Stateroom Category Checkboxes -->
           <div class="tier-box">
             <div class="tier-box-header">
-              <span class="filter-section-title">🛏️ Stateroom Categories (Interior, Ocean View &amp; Balcony)</span>
+              <span class="filter-section-title">Stateroom Categories (Interior, Ocean View &amp; Balcony)</span>
               <span class="tier-box-hint">Check the stateroom types you want to compare &bull; Shows the lowest available rate among checked types</span>
             </div>
             <div class="tier-checkbox-grid">
               <label class="tier-check-card tier-card-standard">
                 <input type="checkbox" class="tier-checkbox" value="Interior" checked />
                 <div class="tier-check-body">
-                  <div class="tier-check-title">🛏️ Interior <span class="tier-count" id="tier-count-Interior"></span></div>
+                  <div class="tier-check-title">Interior <span class="tier-count" id="tier-count-Interior"></span></div>
                   <div class="tier-check-desc">Interior, Connected &amp; Promenade/Park View &bull; Best value on board with full ship access</div>
                 </div>
               </label>
@@ -114,7 +113,7 @@
               <label class="tier-check-card tier-card-sea">
                 <input type="checkbox" class="tier-checkbox" value="OceanView" checked />
                 <div class="tier-check-body">
-                  <div class="tier-check-title">🪟 Ocean View <span class="tier-count" id="tier-count-OceanView"></span></div>
+                  <div class="tier-check-title">Ocean View <span class="tier-count" id="tier-count-OceanView"></span></div>
                   <div class="tier-check-desc">Ocean View &amp; Spacious Ocean View &bull; Natural light with ocean-facing window or porthole</div>
                 </div>
               </label>
@@ -122,7 +121,7 @@
               <label class="tier-check-card tier-card-sky">
                 <input type="checkbox" class="tier-checkbox" value="Balcony" checked />
                 <div class="tier-check-body">
-                  <div class="tier-check-title">🌊 Balcony <span class="tier-count" id="tier-count-Balcony"></span></div>
+                  <div class="tier-check-title">Balcony <span class="tier-count" id="tier-count-Balcony"></span></div>
                   <div class="tier-check-desc">Ocean View, Infinite &amp; Neighborhood Balcony &bull; Private veranda with floor-to-ceiling views</div>
                 </div>
               </label>
@@ -197,8 +196,8 @@
             <label for="filter-rate">Promo / Rate Type</label>
             <select id="filter-rate">
               <option value="all">All Rates (Promo &amp; Holiday)</option>
-              <option value="promo">🟢 Kids Sail Free Promos Only</option>
-              <option value="holiday">🟠 Holiday / Blackout Only</option>
+              <option value="promo">Kids Sail Free Promos Only</option>
+              <option value="holiday">Holiday / Blackout Only</option>
             </select>
           </div>
 
@@ -212,7 +211,7 @@
       <div class="filter-footer">
         <div class="active-filters-summary" id="active-filters-summary">Showing all available stateroom sailings</div>
         <div class="filter-footer-actions">
-          <span class="saved-indicator" id="saved-prefs-badge" title="Your filters, ports, and party size are saved in your browser's localStorage">💾 Filters saved</span>
+          <span class="saved-indicator" id="saved-prefs-badge" title="Your filters, ports, and party size are saved in your browser's localStorage">Filters saved</span>
           <button type="button" class="reset-btn" id="reset-filters-btn">Reset All Filters</button>
         </div>
       </div>
@@ -291,7 +290,7 @@
     </div>
   </footer>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
 
