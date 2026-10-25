@@ -1,8 +1,18 @@
 import argparse
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from curl_cffi import requests
+
+_thread_local = threading.local()
+
+
+def get_thread_session():
+    if not hasattr(_thread_local, "session"):
+        _thread_local.session = requests.Session(impersonate="chrome")
+    return _thread_local.session
 
 ROYAL_SUITE_CLASSES = {"Icon", "Oasis", "Quantum"}
 
@@ -129,13 +139,14 @@ def parse_rsc_deluxe_subtypes(rsc_text: str, ship_cls: str, guests: int) -> list
 
 def fetch_sailing_subtypes(idx_sailing):
     idx, s = idx_sailing
-    session = requests.Session(impersonate="chrome")
+    session = get_thread_session()
     q = s["booking_link"].replace("/booking/landing?", "")
     ship_cls = s.get("ship_class", "Other")
     has_quad = s.get("pricing_quad") is not None
 
     rooms_4 = []
     rooms_2 = []
+    got_403 = False
 
     if has_quad:
         url_4 = f"https://www.royalcaribbean.com/room-selection/type-and-subtype?{q}&r0a=2&r0c=2&r0d=DELUXE"
@@ -143,49 +154,102 @@ def fetch_sailing_subtypes(idx_sailing):
             r4 = session.get(url_4, headers={"RSC": "1"}, timeout=18)
             if r4.status_code == 200:
                 rooms_4 = parse_rsc_deluxe_subtypes(r4.text, ship_cls, 4)
+            elif r4.status_code == 403:
+                got_403 = True
         except Exception:
             pass
 
-    fetched_2a = False
-    if not s.get("is_ksf_promo") or not rooms_4:
-        fetched_2a = True
+    # Always fetch the real 2-adult price (unless already 403-blocked)
+    fetched_2a = True
+    if not got_403:
         url_2 = f"https://www.royalcaribbean.com/room-selection/type-and-subtype?{q}&r0a=2&r0c=0&r0d=DELUXE"
         try:
             r2 = session.get(url_2, headers={"RSC": "1"}, timeout=18)
             if r2.status_code == 200:
                 rooms_2 = parse_rsc_deluxe_subtypes(r2.text, ship_cls, 2)
+            elif r2.status_code == 403:
+                got_403 = True
         except Exception:
             pass
 
-    return idx, rooms_4, rooms_2, fetched_2a
+    return idx, rooms_4, rooms_2, fetched_2a, got_403
 
 
-def enrich_suites_json(json_path: str = "data/suites.json", ship_classes: list[str] | None = None, workers: int = 4, force: bool = False):
+CLASS_PRIORITY = {
+    "icon": 0,
+    "oasis": 1,
+    "quantum": 2,
+    "freedom": 3,
+    "voyager": 4,
+    "radiance": 5,
+    "vision": 6,
+}
+
+
+def enrich_suites_json(
+    json_path: str = "data/suites.json",
+    ship_classes: list[str] | None = None,
+    workers: int = 6,
+    force: bool = False,
+    max_sailings: int = 550,
+):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     sailings = data["sailings"]
-    if ship_classes:
-        cls_lower = {c.lower() for c in ship_classes}
-        targets = [
-            (i, s) for i, s in enumerate(sailings)
-            if (s.get("ship_class") or "").lower() in cls_lower
-            and (force or not any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values()))
-        ]
-    else:
-        targets = [
-            (i, s) for i, s in enumerate(sailings)
-            if force or not any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
-        ]
+    cls_lower = {c.lower() for c in ship_classes} if ship_classes else None
 
-    print(f"Enriching {len(targets)} sailings from {json_path} with live room-selection subtypes...")
+    candidates = []
+    for i, s in enumerate(sailings):
+        s_cls = (s.get("ship_class") or "").lower()
+        if cls_lower and s_cls not in cls_lower:
+            continue
+        has_live = any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
+        if not force and has_live:
+            continue
+        enriched_at = s.get("enriched_at") or ""
+        cls_prio = CLASS_PRIORITY.get(s_cls, 9)
+        candidates.append((0 if not has_live else 1, cls_prio, enriched_at, i, s))
+
+    # If all sailings already have live data and we have remaining capacity in max_sailings,
+    # also refresh the oldest-enriched Royal Suite Class sailings
+    if len(candidates) < max_sailings and not force:
+        already_queued = {item[3] for item in candidates}
+        refresh_pool = []
+        for i, s in enumerate(sailings):
+            if i in already_queued:
+                continue
+            s_cls = (s.get("ship_class") or "").lower()
+            if cls_lower and s_cls not in cls_lower:
+                continue
+            enriched_at = s.get("enriched_at") or ""
+            cls_prio = CLASS_PRIORITY.get(s_cls, 9)
+            refresh_pool.append((1, cls_prio, enriched_at, i, s))
+        refresh_pool.sort(key=lambda x: (x[1], x[2]))
+        candidates.extend(refresh_pool[: max(0, max_sailings - len(candidates))])
+
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+    targets = [(item[3], item[4]) for item in candidates[:max_sailings]]
+
+    print(f"Enriching {len(targets)} sailings from {json_path} with live room-selection subtypes (workers={workers})...")
     t0 = time.time()
     updated = 0
+    consecutive_403 = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(fetch_sailing_subtypes, item) for item in targets]
         for count, fut in enumerate(as_completed(futures), 1):
-            idx, rooms_4, rooms_2, fetched_2a = fut.result()
+            idx, rooms_4, rooms_2, fetched_2a, got_403 = fut.result()
+            if got_403 and not rooms_4 and not rooms_2:
+                consecutive_403 += 1
+                if consecutive_403 >= 15:
+                    print("  Notice: Akamai rate limit reached (403); stopping batch early and saving progress.", flush=True)
+                    for pending in futures:
+                        pending.cancel()
+                    break
+            else:
+                consecutive_403 = 0
             s = sailings[idx]
             if not rooms_4 and not rooms_2:
                 continue
@@ -209,7 +273,8 @@ def enrich_suites_json(json_path: str = "data/suites.json", ship_classes: list[s
                 p4 = map_4.get(code)
                 p2 = map_2.get(code)
 
-                if p4 and not p2 and not fetched_2a:
+                # Fallback only: the 2-adult request failed or omitted this room code
+                if p4 and not p2:
                     tax_2 = round(p4["cabin_taxes"] / 2.0, 2)
                     extra_pp = float(s.get("extra_guest_fare_pp") or 0.0)
                     base_2 = round(max(0.0, p4["cabin_base"] - 2.0 * extra_pp), 2)
@@ -236,25 +301,45 @@ def enrich_suites_json(json_path: str = "data/suites.json", ship_classes: list[s
                 t_rooms = grouped.get(t) or []
                 if not t_rooms:
                     continue
-                t_rooms.sort(key=lambda x: x["sort_price"])
-                lead = t_rooms[0]
-                others = t_rooms[1:]
-                if others:
-                    other_str = " • ".join(
-                        f"{o['display_name']}: ${int(round((o['pricing_quad'] or o['pricing_2a'])['cabin_total'])):,}"
-                        for o in others[:5]
-                    )
-                else:
-                    other_str = ""
+
+                rooms_2a = sorted(
+                    [r for r in t_rooms if r["pricing_2a"] is not None],
+                    key=lambda x: x["pricing_2a"]["cabin_total"],
+                )
+                rooms_quad = sorted(
+                    [r for r in t_rooms if r["pricing_quad"] is not None],
+                    key=lambda x: x["pricing_quad"]["cabin_total"],
+                )
+
+                best_2a = rooms_2a[0] if rooms_2a else None
+                best_quad = rooms_quad[0] if rooms_quad else None
+                lead = best_quad or best_2a
+                if not lead:
+                    continue
+
+                others_quad = [
+                    f"{o['display_name']}: ${int(round(o['pricing_quad']['cabin_total'])):,}"
+                    for o in rooms_quad[1:6]
+                ]
+                others_2a = [
+                    f"{o['display_name']}: ${int(round(o['pricing_2a']['cabin_total'])):,}"
+                    for o in rooms_2a[1:6]
+                ]
+                other_str_quad = " • ".join(others_quad)
+                other_str_2a = " • ".join(others_2a)
 
                 tiers_dict[t] = {
                     "tier": t,
                     "label": "We Choose Your Suite (Guarantee)" if t == "Guarantee" else f"{t} Class",
-                    "room_name": lead["display_name"],
-                    "other_rooms": other_str,
+                    "room_name": (best_quad or best_2a)["display_name"],
+                    "room_name_2a": best_2a["display_name"] if best_2a else (best_quad["display_name"] if best_quad else ""),
+                    "room_name_quad": best_quad["display_name"] if best_quad else (best_2a["display_name"] if best_2a else ""),
+                    "other_rooms": other_str_quad or other_str_2a,
+                    "other_rooms_2a": other_str_2a,
+                    "other_rooms_quad": other_str_quad,
                     "amenities": SUITE_TIER_AMENITIES.get(t, ""),
-                    "pricing_2a": lead["pricing_2a"],
-                    "pricing_quad": lead["pricing_quad"],
+                    "pricing_2a": best_2a["pricing_2a"] if best_2a else None,
+                    "pricing_quad": best_quad["pricing_quad"] if best_quad else None,
                     "is_live_exact": True,
                 }
 
@@ -269,6 +354,7 @@ def enrich_suites_json(json_path: str = "data/suites.json", ship_classes: list[s
                 s["tiers"] = tiers_dict
                 s["pricing_2a"] = lead_obj["pricing_2a"]
                 s["pricing_quad"] = lead_obj["pricing_quad"]
+                s["enriched_at"] = now_iso
 
                 ref_main = lead_obj["pricing_quad"] or lead_obj["pricing_2a"]
                 s["base_pp"] = ref_main["base_pp"]
@@ -339,9 +425,11 @@ def enrich_suites_json(json_path: str = "data/suites.json", ship_classes: list[s
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Enrich suites.json with live per-subtype room-selection prices from Royal Caribbean")
     parser.add_argument("--json", default="data/suites.json", help="Path to suites.json")
-    parser.add_argument("--ship-class", default="Icon", help="Comma-separated ship classes to enrich (e.g. Icon,Oasis) or 'all'")
-    parser.add_argument("--workers", type=int, default=4, help="Concurrent workers (default: 4)")
+    parser.add_argument("--ship-class", default="all", help="Comma-separated ship classes to enrich (e.g. Icon,Oasis) or 'all' (default: all)")
+    parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
+    parser.add_argument("--max-sailings", type=int, default=550, help="Max sailings to enrich per run to stay under Akamai limits (default: 550)")
+    parser.add_argument("--force", action="store_true", help="Re-enrich sailings even if already marked is_live_exact")
     args = parser.parse_args()
     classes = None if args.ship_class.lower() == "all" else [c.strip() for c in args.ship_class.split(",") if c.strip()]
-    enrich_suites_json(args.json, classes, args.workers)
+    enrich_suites_json(args.json, classes, args.workers, force=args.force, max_sailings=args.max_sailings)
 

@@ -345,6 +345,10 @@ def build_staterooms_dataset(ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,L
         it["sail_dates"].sort()
     itineraries_list.sort(key=lambda x: x["lowest_cabin_total"])
 
+    if not deals:
+        print(f"Warning: 0 stateroom sailings returned; keeping existing {output_json}.")
+        return
+
     os.makedirs(os.path.dirname(output_json), exist_ok=True)
     payload = {
         "updated_at": datetime.now(timezone.utc).isoformat(),

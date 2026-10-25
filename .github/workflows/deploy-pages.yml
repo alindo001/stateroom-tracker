@@ -27,20 +27,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python (for scheduled or manual price refresh)
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Refresh Suites + Staterooms catalogs
+      - name: Refresh Suites + Staterooms catalogs (scheduled or manual trigger)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: |
           pip install curl_cffi
-          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
-          python enrich_subtypes.py
+          curl -fsSL https://alindo001.github.io/stateroom-tracker/data/suites.json -o data/suites.json || true
           python fetch_staterooms.py
+          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
+          python enrich_subtypes.py --ship-class all --workers 6 --max-sailings 550
+
+      - name: Enrich any remaining Royal Suite Class sailings on push
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: |
+          pip install curl_cffi
+          python enrich_subtypes.py --ship-class Icon,Oasis,Quantum --workers 6 --max-sailings 550
 
       - name: Assemble clean static site bundle
         run: |

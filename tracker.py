@@ -722,6 +722,44 @@ def track_suite_prices(
     itineraries_list.sort(key=lambda x: x["lowest_cabin_total"])
 
     if output_json and deals:
+        # Preserve any existing live room-subtype tiers (from enrich_subtypes.py) so a fresh baseline run
+        # never wipes out Sea/Sky/Star room-level breakdowns before enrich_subtypes.py runs.
+        if os.path.exists(output_json):
+            try:
+                with open(output_json, "r", encoding="utf-8") as prev_f:
+                    prev_data = json.load(prev_f)
+                prev_live_map = {
+                    (s.get("ship_code"), s.get("date")): s
+                    for s in (prev_data.get("sailings") or [])
+                    if any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
+                }
+                for d in deals:
+                    prev_s = prev_live_map.get((d.get("ship_code"), d.get("date")))
+                    if prev_s:
+                        for fld in (
+                            "suite_tier",
+                            "available_tiers",
+                            "tiers",
+                            "pricing_2a",
+                            "pricing_quad",
+                            "base_pp",
+                            "total_pp",
+                            "cabin_base",
+                            "cabin_taxes",
+                            "cabin_total",
+                            "cabin_discount",
+                            "price_per_night",
+                            "extra_guest_fare_pp",
+                            "is_ksf_promo",
+                            "is_holiday_rate",
+                            "rate_tag",
+                            "enriched_at",
+                        ):
+                            if fld in prev_s:
+                                d[fld] = prev_s[fld]
+            except Exception as e:
+                print(f"Warning: could not merge previous live tiers from {output_json}: {e}")
+
         out_dir = os.path.dirname(output_json)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)

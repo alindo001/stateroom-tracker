@@ -335,8 +335,15 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     rateTag = `HOLIDAY/BLACKOUT: 3rd/4th +$${extraGuestFarePp.toFixed(2)}/ea (-$${Math.round(cabinDiscount)} off)`;
   }
 
-  const roomName = tierObj?.room_name || raw.category || ITEM_LABEL;
-  const otherRooms = tierObj?.other_rooms || "";
+  const roomName =
+    (totalGuests <= 2 ? tierObj?.room_name_2a : tierObj?.room_name_quad) ||
+    tierObj?.room_name ||
+    raw.category ||
+    ITEM_LABEL;
+  const otherRooms =
+    (totalGuests <= 2 ? tierObj?.other_rooms_2a : tierObj?.other_rooms_quad) ??
+    tierObj?.other_rooms ??
+    "";
   const amenities = tierObj?.amenities || "";
   const isLiveExact = Boolean(tierObj?.is_live_exact);
   const royalType = tierObj?.royal_type || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
