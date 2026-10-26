@@ -114,9 +114,14 @@
           <div class="tier-box">
             <div class="tier-box-header">
               <span class="filter-section-title">Suite Class &amp; Amenities (Assigned Rooms by Default)</span>
+              <div class="tier-header-actions">
+                <button type="button" class="tier-details-toggle" id="tier-details-toggle" aria-expanded="false">
+                  &#9432; Perk Details
+                </button>
+              </div>
               <span class="tier-box-hint">Assigned rooms guarantee Sea/Sky/Star perks &bull; Check &ldquo;We Choose Your Suite&rdquo; only if you want unassigned Guarantee rates</span>
             </div>
-            <div class="tier-checkbox-grid">
+            <div class="tier-checkbox-grid" id="tier-checkbox-grid">
               <label class="tier-check-card tier-card-sea">
                 <input type="checkbox" class="tier-checkbox" value="Sea" checked />
                 <div class="tier-check-body">
@@ -160,8 +165,16 @@
           </div>
         </div>
 
-        <!-- Filter Controls Grid -->
-        <div class="filter-grid">
+        <!-- Collapsible Search & Route Filters -->
+        <div class="sub-collapsible-section" id="more-filters-section">
+          <button type="button" class="sub-collapsible-toggle" id="more-filters-toggle" aria-expanded="false">
+            <span class="sub-toggle-left">
+              <strong>Route, Ship, Port &amp; Date Filters</strong>
+              <span class="sub-toggle-badge" id="more-filters-badge">3 Ports</span>
+            </span>
+            <span class="sub-toggle-chevron" id="more-filters-chevron">&#9662; Show Filters</span>
+          </button>
+          <div class="filter-grid" id="filter-grid-body">
           <div class="filter-field">
             <label for="filter-ship-class">Ship Class</label>
             <select id="filter-ship-class">
@@ -235,6 +248,7 @@
           <div class="filter-field">
             <label for="filter-search">Search Route / Ship</label>
             <input type="search" id="filter-search" placeholder="e.g. Icon, Perfect Day, Southern..." />
+          </div>
           </div>
         </div>
       </div>

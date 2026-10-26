@@ -52,3 +52,4 @@ Goal:
   Bring the same exact subtype room breakdown used on `suites.html` to
   `staterooms.html` (e.g., separating Ocean View Balcony vs. Central Park
   View Balcony vs. Boardwalk View Balcony vs. Guarantee Balcony).
+

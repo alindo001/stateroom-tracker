@@ -265,6 +265,13 @@ function getSuiteTierCellHtml(sailing) {
     ? escapeHtml(otherRooms)
     : `Also in ${escapeHtml(getTierDisplayLabel(tierKey))}: ${escapeHtml(otherRooms)}`;
 
+  const otherCount = otherRooms ? otherRooms.split("•").length : 0;
+  const detailsLabel = otherRooms
+    ? `+${otherCount} more room${otherCount !== 1 ? "s" : ""} & perks`
+    : "View perks & details";
+
+  const hasExpandable = Boolean(otherRooms || amenities);
+
   return `
     <div class="suite-cell-header">
       ${getTierBadgeHtml(tierKey)}
@@ -273,8 +280,17 @@ function getSuiteTierCellHtml(sailing) {
     </div>
     ${twoRoomNote ? `<span class="two-room-split-tag">${escapeHtml(twoRoomNote)}</span>` : ""}
     ${occWarn ? `<span class="occupancy-warn-note">${escapeHtml(occWarn)}</span>` : ""}
-    ${otherRooms ? `<span class="suite-other-rooms">${otherPrefix}</span>` : ""}
-    <span class="amenities-sub">${escapeHtml(amenities)}</span>
+    ${
+      hasExpandable
+        ? `<details class="cell-more-details">
+            <summary class="cell-more-summary">${detailsLabel}</summary>
+            <div class="cell-more-body">
+              ${otherRooms ? `<span class="suite-other-rooms">${otherPrefix}</span>` : ""}
+              ${amenities ? `<span class="amenities-sub">${escapeHtml(amenities)}</span>` : ""}
+            </div>
+          </details>`
+        : ""
+    }
   `;
 }
 
@@ -1180,6 +1196,34 @@ function updateSummaryAndKpis(itineraries, sailings, tierCounts) {
   } else {
     summaryEl.textContent = `Active Filters (${parts.length}): ${parts.join(" • ")} — ${sailings.length} sailings found`;
   }
+
+  // Update mobile filter badge & sub-collapsible badge with live context
+  const mobileFilterToggle = document.getElementById("mobile-filter-toggle");
+  if (mobileFilterToggle) {
+    const labelSpan = mobileFilterToggle.querySelector("span:first-child");
+    if (labelSpan) {
+      const totalGuests = state.adults + state.children;
+      const checkedCount = state.filters.suiteTiers.size;
+      labelSpan.textContent = `Party (${totalGuests}), ${IS_STATEROOMS ? "Room Types" : "Suite Tiers"} (${checkedCount}) & Filters`;
+    }
+  }
+
+  const moreFiltersBadge = document.getElementById("more-filters-badge");
+  if (moreFiltersBadge) {
+    const subParts = [];
+    if (state.filters.shipClass !== "all") subParts.push(`${state.filters.shipClass}`);
+    if (state.filters.ship !== "all") subParts.push(state.filters.ship.replace(/ of the Seas/i, ""));
+    const portCount = state.filters.ports.size;
+    if (portCount <= 3) {
+      subParts.push(Array.from(state.filters.ports).join("/") || "0 Ports");
+    } else {
+      subParts.push(`${portCount} Ports`);
+    }
+    if (state.filters.nights !== "all") subParts.push(state.filters.nights);
+    if (state.filters.rateType !== "all") subParts.push(state.filters.rateType);
+    if (state.filters.search.trim()) subParts.push(`"${state.filters.search.trim()}"`);
+    moreFiltersBadge.textContent = subParts.join(" • ");
+  }
 }
 
 function renderItinerariesView(itineraries) {
@@ -1436,6 +1480,34 @@ function bindEvents() {
       mobileFilterToggle.setAttribute("aria-expanded", String(!isCollapsed));
       if (mobileFilterChevron) {
         mobileFilterChevron.textContent = isCollapsed ? "▼ Show" : "▲ Hide";
+      }
+    });
+  }
+
+  // Tier Perk/Room Details collapsible toggle (compact chips vs full descriptions)
+  const tierDetailsToggle = document.getElementById("tier-details-toggle");
+  const tierCheckboxGrid = document.getElementById("tier-checkbox-grid");
+  if (tierDetailsToggle && tierCheckboxGrid) {
+    const defaultLabel = IS_STATEROOMS ? "ⓘ Room Details" : "ⓘ Perk Details";
+    const hideLabel = IS_STATEROOMS ? "▲ Hide Details" : "▲ Hide Perks";
+    tierDetailsToggle.addEventListener("click", () => {
+      const isExpanded = tierCheckboxGrid.classList.toggle("show-tier-details");
+      tierDetailsToggle.setAttribute("aria-expanded", String(isExpanded));
+      tierDetailsToggle.classList.toggle("active", isExpanded);
+      tierDetailsToggle.textContent = isExpanded ? hideLabel : defaultLabel;
+    });
+  }
+
+  // Collapsible Route, Ship, Port & Date Filters drawer
+  const moreFiltersToggle = document.getElementById("more-filters-toggle");
+  const filterGridBody = document.getElementById("filter-grid-body");
+  const moreFiltersChevron = document.getElementById("more-filters-chevron");
+  if (moreFiltersToggle && filterGridBody) {
+    moreFiltersToggle.addEventListener("click", () => {
+      const isExpanded = filterGridBody.classList.toggle("expanded-filters");
+      moreFiltersToggle.setAttribute("aria-expanded", String(isExpanded));
+      if (moreFiltersChevron) {
+        moreFiltersChevron.textContent = isExpanded ? "▴ Hide Filters" : "▾ Show Filters";
       }
     });
   }
