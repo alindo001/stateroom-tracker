@@ -43,6 +43,7 @@ const state = {
   sortBy: "total_asc",
   adults: 2,
   children: 2,
+  roomMode: "two_rooms", // "two_rooms" | "single_room_5p" (used when adults + children > 4)
   allAvailablePorts: new Map(), // code -> { name, count }
   customPorts: new Map(),       // code -> name
   filters: {
@@ -66,6 +67,7 @@ function saveStateToStorage() {
       sortBy: state.sortBy,
       adults: state.adults,
       children: state.children,
+      roomMode: state.roomMode,
       customPorts: Array.from(state.customPorts.entries()),
       filters: {
         shipClass: state.filters.shipClass,
@@ -105,8 +107,11 @@ function loadStateFromStorage() {
     if (Number.isInteger(saved.adults) && saved.adults >= 1 && saved.adults <= 4) {
       state.adults = saved.adults;
     }
-    if (Number.isInteger(saved.children) && saved.children >= 0 && saved.children <= 4) {
+    if (Number.isInteger(saved.children) && saved.children >= 0 && saved.children <= 6) {
       state.children = saved.children;
+    }
+    if (saved.roomMode === "two_rooms" || saved.roomMode === "single_room_5p") {
+      state.roomMode = IS_STATEROOMS ? "two_rooms" : saved.roomMode;
     }
     if (Array.isArray(saved.customPorts)) {
       state.customPorts = new Map(saved.customPorts);
@@ -211,12 +216,50 @@ function getTierBadgeHtml(tierKey, roomName = "") {
   return `<span class="badge ${badgeCls}">${label}${roomPart}</span>`;
 }
 
+function getRoomOccupancyInfo(roomNameOrCode, shipClass) {
+  const str = String(roomNameOrCode || "").trim();
+  const codeMatch = str.match(/\(([A-Z0-9]{1,3})\)/);
+  const code = (codeMatch ? codeMatch[1] : str).toUpperCase();
+  const clsLower = String(shipClass || "").toLowerCase();
+
+  if (code === "VS") {
+    return { code, maxGuests: 14, pullmanWarning: false };
+  }
+  if (["UL", "TH", "US", "A1", "A2", "GT", "OT"].includes(code)) {
+    return { code, maxGuests: 8, pullmanWarning: false };
+  }
+  if (["RL", "VY"].includes(code)) {
+    return { code, maxGuests: 6, pullmanWarning: false };
+  }
+  if (["JS", "JY", "J1", "CJ"].includes(code) && clsLower !== "icon") {
+    return { code, maxGuests: 5, pullmanWarning: true };
+  }
+  return { code, maxGuests: 4, pullmanWarning: false };
+}
+
+function splitPartyAcrossTwoRooms(adults, children) {
+  const totalGuests = adults + children;
+  const room1Total = Math.min(4, Math.ceil(totalGuests / 2));
+  const room2Total = Math.min(4, Math.max(1, totalGuests - room1Total));
+
+  // Royal online booking requires >=1 adult per room; if user selected 1 adult total, pass 1A in each room URL
+  const r0a = Math.min(room1Total, Math.max(1, Math.ceil(adults / 2)));
+  const r0c = Math.max(0, room1Total - r0a);
+  const remainingAdults = Math.max(0, adults - r0a);
+  const r1a = Math.min(room2Total, Math.max(1, remainingAdults));
+  const r1c = Math.max(0, room2Total - r1a);
+
+  return { room1Total, room2Total, r0a, r0c, r1a, r1c };
+}
+
 function getSuiteTierCellHtml(sailing) {
   const tierKey = sailing.active_tier || (IS_STATEROOMS ? "Interior" : "Standard");
   const roomName = sailing.room_name || sailing.category || ITEM_LABEL;
   const otherRooms = sailing.other_rooms || "";
   const amenities = sailing.amenities || "";
   const isLive = Boolean(sailing.is_live_exact);
+  const twoRoomNote = sailing.two_room_split_note || "";
+  const occWarn = sailing.occupancy_warning || "";
 
   const otherPrefix = otherRooms.toLowerCase().startsWith("also")
     ? escapeHtml(otherRooms)
@@ -228,23 +271,65 @@ function getSuiteTierCellHtml(sailing) {
       <span class="suite-lead-room" title="Entry-level room for this category price">${escapeHtml(roomName)}</span>
       ${isLive ? `<span class="live-price-tag" title="Exact room price verified from Royal Caribbean">${IS_STATEROOMS ? "Live Rate" : "Live Room Price"}</span>` : ""}
     </div>
+    ${twoRoomNote ? `<span class="two-room-split-tag">${escapeHtml(twoRoomNote)}</span>` : ""}
+    ${occWarn ? `<span class="occupancy-warn-note">${escapeHtml(occWarn)}</span>` : ""}
     ${otherRooms ? `<span class="suite-other-rooms">${otherPrefix}</span>` : ""}
     <span class="amenities-sub">${escapeHtml(amenities)}</span>
   `;
 }
 
-function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE") {
-  const r0a = Math.max(1, Number(adults) || 2);
-  const r0c = Math.max(0, Number(children) || 0);
+function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE", isTwoRooms = false) {
+  const totalGuests = (Number(adults) || 2) + (Number(children) || 0);
   const r0d = royalType || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
+
+  let params;
   if (raw.booking_link) {
     const queryPart = raw.booking_link.replace(/^\/booking\/landing\?/, "");
-    const params = new URLSearchParams(queryPart);
-    // Remove any pre-existing room-0 params before setting the active party size
+    params = new URLSearchParams(queryPart);
     for (const key of Array.from(params.keys())) {
       if (/^r\d+[a-zA-Z]$/.test(key)) {
         params.delete(key);
       }
+    }
+  } else {
+    const groupId = raw.itinerary_code || `${raw.ship_code || ""}${String(raw.nights || 7).padStart(2, "0")}${raw.port_code || "MIA"}`;
+    const pkgCode = raw.package_code || groupId;
+    params = new URLSearchParams({
+      groupId,
+      sailDate: raw.date || "",
+      shipCode: raw.ship_code || "",
+      packageCode: pkgCode,
+      destinationCode: "CARIB",
+      selectedCurrencyCode: "USD",
+      country: "USA",
+    });
+  }
+
+  if (totalGuests > 4 && isTwoRooms) {
+    const split = splitPartyAcrossTwoRooms(Number(adults) || 2, Number(children) || 0);
+    params.set("r0a", String(split.r0a));
+    params.set("r0c", String(split.r0c));
+    params.set("r0b", "n");
+    params.set("r0d", r0d);
+    params.set("r0q", "n");
+    params.set("r0r", "n");
+    params.set("r0s", "n");
+    params.set("r0t", "n");
+
+    params.set("r1a", String(split.r1a));
+    params.set("r1c", String(split.r1c));
+    params.set("r1b", "n");
+    params.set("r1d", r0d);
+    params.set("r1q", "n");
+    params.set("r1r", "n");
+    params.set("r1s", "n");
+    params.set("r1t", "n");
+  } else {
+    // Royal Caribbean caps online single-room URLs at 4 guests total
+    let r0a = Math.max(1, Math.min(4, Number(adults) || 2));
+    let r0c = Math.max(0, Number(children) || 0);
+    if (r0a + r0c > 4) {
+      r0c = Math.max(0, 4 - r0a);
     }
     params.set("r0a", String(r0a));
     params.set("r0c", String(r0c));
@@ -254,11 +339,9 @@ function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE") {
     params.set("r0r", "n");
     params.set("r0s", "n");
     params.set("r0t", "n");
-    return `https://www.royalcaribbean.com/room-selection/type-and-subtype?${params.toString()}`;
   }
-  const groupId = encodeURIComponent(raw.itinerary_code || `${raw.ship_code || ""}${String(raw.nights || 7).padStart(2, "0")}${raw.port_code || "MIA"}`);
-  const pkgCode = encodeURIComponent(raw.package_code || groupId);
-  return `https://www.royalcaribbean.com/room-selection/type-and-subtype?groupId=${groupId}&sailDate=${encodeURIComponent(raw.date || "")}&shipCode=${encodeURIComponent(raw.ship_code || "")}&packageCode=${pkgCode}&destinationCode=CARIB&selectedCurrencyCode=USD&country=USA&r0a=${r0a}&r0c=${r0c}&r0b=n&r0d=${encodeURIComponent(r0d)}&r0q=n&r0r=n&r0s=n&r0t=n`;
+
+  return `https://www.royalcaribbean.com/room-selection/type-and-subtype?${params.toString()}`;
 }
 
 function getRateBadgeHtml(sailing) {
@@ -271,14 +354,126 @@ function getRateBadgeHtml(sailing) {
   return `<span class="rate-pill rate-standard">${escapeHtml(sailing.rate_tag || "STANDARD")}</span>`;
 }
 
+function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
+  if (!tierObj) return null;
+  const shipClass = raw.ship_class || "";
+
+  if (Array.isArray(tierObj.rooms) && tierObj.rooms.length > 0) {
+    const valid = tierObj.rooms.filter((r) => {
+      if (!r.pricing_quad) return false;
+      const occ = getRoomOccupancyInfo(r.display_name || r.code, shipClass);
+      const maxG = r.max_guests || occ.maxGuests;
+      return maxG >= totalGuests;
+    });
+    if (valid.length === 0) return null;
+    valid.sort((a, b) => a.pricing_quad.cabin_total - b.pricing_quad.cabin_total);
+    const chosen = valid[0];
+    const occ = getRoomOccupancyInfo(chosen.display_name || chosen.code, shipClass);
+    return {
+      roomName: chosen.display_name,
+      p2: chosen.pricing_2a || tierObj.pricing_2a,
+      p4: chosen.pricing_quad,
+      maxGuests: chosen.max_guests || occ.maxGuests,
+      pullmanWarning: chosen.pullman_warning != null ? Boolean(chosen.pullman_warning) : occ.pullmanWarning,
+      otherRooms: valid
+        .slice(1, 6)
+        .map((o) => `${o.display_name}: $${Math.round(o.pricing_quad.cabin_total).toLocaleString("en-US")}`)
+        .join(" • "),
+    };
+  }
+
+  // Fallback for existing suites.json before tierObj.rooms array is populated
+  const leadQuadName = tierObj.room_name_quad || tierObj.room_name || "";
+  const leadOcc = getRoomOccupancyInfo(leadQuadName, shipClass);
+  const candidates = [];
+
+  if (leadOcc.maxGuests >= totalGuests && tierObj.pricing_quad) {
+    candidates.push({
+      roomName: leadQuadName,
+      p2: tierObj.pricing_2a,
+      p4: tierObj.pricing_quad,
+      maxGuests: leadOcc.maxGuests,
+      pullmanWarning: leadOcc.pullmanWarning,
+    });
+  }
+
+  const otherStr = tierObj.other_rooms_quad || tierObj.other_rooms || "";
+  if (otherStr && tierObj.pricing_quad) {
+    const parts = otherStr.split("•").map((s) => s.trim()).filter(Boolean);
+    for (const part of parts) {
+      const m = part.match(/^(.+?):\s*\$([\d,]+)$/);
+      if (!m) continue;
+      const rName = m[1].trim();
+      const quadTotal = Number(m[2].replace(/,/g, ""));
+      if (!quadTotal || Number.isNaN(quadTotal)) continue;
+      const occ = getRoomOccupancyInfo(rName, shipClass);
+      if (occ.maxGuests >= totalGuests) {
+        const taxes4 = tierObj.pricing_quad.cabin_taxes;
+        const base4 = Math.max(0, Number((quadTotal - taxes4).toFixed(2)));
+        candidates.push({
+          roomName: rName,
+          p2: null,
+          p4: {
+            guests: 4,
+            cabin_base: base4,
+            cabin_taxes: taxes4,
+            cabin_total: quadTotal,
+            cabin_discount: tierObj.pricing_quad.cabin_discount || 0,
+          },
+          maxGuests: occ.maxGuests,
+          pullmanWarning: occ.pullmanWarning,
+        });
+      }
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a.p4.cabin_total - b.p4.cabin_total);
+  const best = candidates[0];
+  return {
+    ...best,
+    otherRooms: candidates
+      .slice(1, 6)
+      .map((o) => `${o.roomName}: $${Math.round(o.p4.cabin_total).toLocaleString("en-US")}`)
+      .join(" • "),
+  };
+}
+
 function computeTierCandidate(raw, tierKey, adults, children) {
   const totalGuests = adults + children;
   const tierObj = (raw.tiers && raw.tiers[tierKey]) || null;
+  const effectiveRoomMode = IS_STATEROOMS ? "two_rooms" : state.roomMode;
 
-  const p2 = tierObj ? tierObj.pricing_2a : raw.pricing_2a;
-  const p4 = tierObj ? tierObj.pricing_quad : raw.pricing_quad;
+  let p2 = tierObj ? tierObj.pricing_2a : raw.pricing_2a;
+  let p4 = tierObj ? tierObj.pricing_quad : raw.pricing_quad;
+  let customRoomName = null;
+  let customOtherRooms = null;
+  let occupancyWarning = "";
+  let twoRoomSplitNote = "";
+  let isTwoRooms = false;
 
-  if (totalGuests > 2 && !p4) {
+  if (totalGuests > 4) {
+    if (effectiveRoomMode === "single_room_5p") {
+      const capRoom = findCapable5PlusRoomForTier(raw, tierObj, totalGuests);
+      if (!capRoom) {
+        return null;
+      }
+      p2 = capRoom.p2;
+      p4 = capRoom.p4;
+      customRoomName = capRoom.roomName;
+      customOtherRooms = capRoom.otherRooms;
+      if (capRoom.pullmanWarning) {
+        occupancyWarning =
+          "Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling Royal Caribbean is required.";
+      } else {
+        occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 suite. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
+      }
+    } else {
+      isTwoRooms = true;
+    }
+  }
+
+  if (totalGuests > 2 && !isTwoRooms && !p4) {
     return null;
   }
   if (totalGuests <= 2 && tierObj?.is_live_exact && !p2) {
@@ -312,21 +507,47 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   const isKsfPromo = Boolean(raw.is_ksf_promo);
   const isHolidayRate = Boolean(raw.is_holiday_rate);
 
-  const extraGuests = Math.max(0, totalGuests - 2);
-  const cabinBase = Number((base2Guests + extraGuests * extraGuestFarePp).toFixed(2));
-  const cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
+  let cabinBase = 0;
+  let cabinTaxes = 0;
+  let cabinDiscount = discount2Guests;
+
+  if (isTwoRooms) {
+    const split = splitPartyAcrossTwoRooms(adults, children);
+    if (split.room1Total > 2 && !p4) {
+      return null;
+    }
+    const r1Extra = Math.max(0, split.room1Total - 2);
+    const r2Extra = Math.max(0, split.room2Total - 2);
+    const room1Base = base2Guests + r1Extra * extraGuestFarePp;
+    const room2Base = base2Guests + r2Extra * extraGuestFarePp;
+    cabinBase = Number((room1Base + room2Base).toFixed(2));
+    cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
+    cabinDiscount = Number((discount2Guests * 2).toFixed(2));
+    const r0Label = `${split.r0a}A${split.r0c > 0 ? `+${split.r0c}C` : ""}`;
+    const r1Label = `${split.r1a}A${split.r1c > 0 ? `+${split.r1c}C` : ""}`;
+    twoRoomSplitNote = `2 Rooms Online (Room 1: ${r0Label} • Room 2: ${r1Label})`;
+  } else if (totalGuests > 4 && effectiveRoomMode === "single_room_5p" && p4) {
+    // Use the 5+ guest suite's exact 4-guest price as baseline and add the 5th+ guest fare
+    const extraBeyond4 = Math.max(0, totalGuests - 4);
+    cabinBase = Number((p4.cabin_base + extraBeyond4 * extraGuestFarePp).toFixed(2));
+    cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
+    cabinDiscount = p4.cabin_discount || discount2Guests;
+  } else {
+    const extraGuests = Math.max(0, totalGuests - 2);
+    cabinBase = Number((base2Guests + extraGuests * extraGuestFarePp).toFixed(2));
+    cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
+    if (totalGuests >= 4 && p4 && p4.cabin_discount != null) {
+      cabinDiscount = p4.cabin_discount;
+    } else if (totalGuests === 3 && p4 && p2) {
+      cabinDiscount = Number(((p2.cabin_discount + p4.cabin_discount) / 2.0).toFixed(2));
+    }
+  }
+
   const cabinTotal = Number((cabinBase + cabinTaxes).toFixed(2));
   const totalPp = Number((cabinTotal / totalGuests).toFixed(2));
   const basePp = Number((cabinBase / totalGuests).toFixed(2));
   const nights = raw.nights || 1;
   const pricePerNight = Number((cabinTotal / nights).toFixed(2));
-
-  let cabinDiscount = discount2Guests;
-  if (totalGuests >= 4 && p4 && p4.cabin_discount != null) {
-    cabinDiscount = p4.cabin_discount;
-  } else if (totalGuests === 3 && p4 && p2) {
-    cabinDiscount = Number(((p2.cabin_discount + p4.cabin_discount) / 2.0).toFixed(2));
-  }
 
   let rateTag = raw.rate_tag || "STANDARD";
   if (isKsfPromo) {
@@ -336,14 +557,17 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   }
 
   const roomName =
+    customRoomName ||
     (totalGuests <= 2 ? tierObj?.room_name_2a : tierObj?.room_name_quad) ||
     tierObj?.room_name ||
     raw.category ||
     ITEM_LABEL;
   const otherRooms =
-    (totalGuests <= 2 ? tierObj?.other_rooms_2a : tierObj?.other_rooms_quad) ??
-    tierObj?.other_rooms ??
-    "";
+    customOtherRooms !== null
+      ? customOtherRooms
+      : (totalGuests <= 2 ? tierObj?.other_rooms_2a : tierObj?.other_rooms_quad) ??
+        tierObj?.other_rooms ??
+        "";
   const amenities = tierObj?.amenities || "";
   const isLiveExact = Boolean(tierObj?.is_live_exact);
   const royalType = tierObj?.royal_type || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
@@ -355,6 +579,9 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     other_rooms: otherRooms,
     amenities: amenities,
     is_live_exact: isLiveExact,
+    is_two_rooms: isTwoRooms,
+    two_room_split_note: twoRoomSplitNote,
+    occupancy_warning: occupancyWarning,
     base_pp: basePp,
     total_pp: totalPp,
     cabin_base: cabinBase,
@@ -394,7 +621,7 @@ function computeSailingForParty(raw, adults, children, selectedTiers) {
 
   candidates.sort((a, b) => a.cabin_total - b.cabin_total);
   const best = candidates[0];
-  const royalUrl = buildRoyalSuiteUrl(raw, adults, children, best.royal_type);
+  const royalUrl = buildRoyalSuiteUrl(raw, adults, children, best.royal_type, best.is_two_rooms);
 
   return {
     ...raw,
@@ -797,14 +1024,23 @@ function updatePartyUI() {
   document.getElementById("children-val").textContent = state.children;
 
   document.getElementById("adults-minus").disabled = state.adults <= 1;
-  document.getElementById("adults-plus").disabled = state.adults >= 4 || totalGuests >= 6;
+  document.getElementById("adults-plus").disabled = state.adults >= 4 || totalGuests >= 8;
   document.getElementById("children-minus").disabled = state.children <= 0;
-  document.getElementById("children-plus").disabled = state.children >= 4 || totalGuests >= 6;
+  document.getElementById("children-plus").disabled = state.children >= 6 || totalGuests >= 8;
 
   document.querySelectorAll(".preset-chip").forEach((chip) => {
     const a = Number(chip.dataset.adults);
     const c = Number(chip.dataset.children);
     chip.classList.toggle("active", a === state.adults && c === state.children);
+  });
+
+  const roomModeBox = document.getElementById("room-mode-box");
+  if (roomModeBox) {
+    roomModeBox.classList.toggle("hidden", totalGuests <= 4);
+  }
+  const effectiveRoomMode = IS_STATEROOMS ? "two_rooms" : state.roomMode;
+  document.querySelectorAll(".room-mode-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.roomMode === effectiveRoomMode);
   });
 
   const partyText = `${state.adults} Adult${state.adults !== 1 ? "s" : ""}${
@@ -813,8 +1049,21 @@ function updatePartyUI() {
   document.getElementById("party-pill").textContent = `Party: ${partyText}`;
 
   const noteEl = document.getElementById("party-note");
-  if (totalGuests > 2) {
-    noteEl.textContent = `Showing quad/family ${ITEMS_LOWER}s for ${partyText}. Kids Sail Free dates charge $0 base fare for 3rd/4th guests (taxes only).`;
+  if (totalGuests > 4) {
+    if (effectiveRoomMode === "single_room_5p") {
+      noteEl.textContent =
+        `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
+        `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
+    } else {
+      const split = splitPartyAcrossTwoRooms(state.adults, state.children);
+      const r0Label = `${split.r0a}A${split.r0c > 0 ? ` + ${split.r0c}C` : ""}`;
+      const r1Label = `${split.r1a}A${split.r1c > 0 ? ` + ${split.r1c}C` : ""}`;
+      noteEl.textContent =
+        `Showing 2-Room Online Split Pricing for ${partyText} (Room 1: ${r0Label} • Room 2: ${r1Label}). ` +
+        `Clicking "View on Royal" opens Royal Caribbean's 2-room booking flow.`;
+    }
+  } else if (totalGuests > 2) {
+    noteEl.textContent = `Showing single-room quad/family ${ITEMS_LOWER}s for ${partyText} (capped at 4 guests/room online). Kids Sail Free dates charge $0 base fare for 3rd/4th guests (taxes only).`;
   } else {
     noteEl.textContent = `Showing double-occupancy ${ITEMS_LOWER} pricing for ${partyText} (incl. all port taxes & fees).`;
   }
@@ -1181,7 +1430,7 @@ function bindEvents() {
     }
   });
   document.getElementById("adults-plus").addEventListener("click", () => {
-    if (state.adults < 4 && state.adults + state.children < 6) {
+    if (state.adults < 4 && state.adults + state.children < 8) {
       state.adults += 1;
       saveStateToStorage();
       render();
@@ -1195,11 +1444,23 @@ function bindEvents() {
     }
   });
   document.getElementById("children-plus").addEventListener("click", () => {
-    if (state.children < 4 && state.adults + state.children < 6) {
+    if (state.children < 6 && state.adults + state.children < 8) {
       state.children += 1;
       saveStateToStorage();
       render();
     }
+  });
+
+  // 5+ Guest Room Mode buttons (2 Rooms Online vs 1 Room 5+ Guest Suite Phone Estimate)
+  document.querySelectorAll(".room-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.roomMode;
+      if (mode === "two_rooms" || mode === "single_room_5p") {
+        state.roomMode = IS_STATEROOMS ? "two_rooms" : mode;
+        saveStateToStorage();
+        render();
+      }
+    });
   });
 
   // Party presets
@@ -1332,6 +1593,7 @@ function bindEvents() {
   document.getElementById("reset-filters-btn").addEventListener("click", () => {
     state.adults = 2;
     state.children = 2;
+    state.roomMode = "two_rooms";
     state.sortBy = "total_asc";
     state.customPorts.clear();
     state.filters = {

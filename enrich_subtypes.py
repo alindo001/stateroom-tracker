@@ -2,6 +2,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -82,6 +83,31 @@ def classify_subtype_tier(sub: dict, ship_cls: str) -> str:
     return "Sea"
 
 
+def extract_max_occupancy(sub: dict, code: str, ship_cls: str) -> tuple[int, bool]:
+    """Returns (max_guests, pullman_warning) from Royal's room subtype features."""
+    feat_lines = []
+    for feat in sub.get("features") or []:
+        if isinstance(feat, dict):
+            feat_lines.extend(str(x) for x in (feat.get("lines") or []))
+    joined = " ".join(feat_lines)
+    m = re.search(r"up to (\d+)\s*guests", joined, re.I)
+    if m:
+        max_g = int(m.group(1))
+        has_pullman_note = "in staterooms with up to 5 guests" in joined.lower() or code in ("JS", "JY", "J1", "CJ")
+        return max_g, (max_g == 5 and has_pullman_note)
+
+    # Fallback by suite code and ship class
+    if code == "VS":
+        return 14, False
+    if code in ("UL", "TH", "US", "A1", "A2", "GT", "OT"):
+        return 8, False
+    if code in ("RL", "VY"):
+        return 6, False
+    if code in ("JS", "JY", "J1", "CJ") and (ship_cls or "").lower() != "icon":
+        return 5, True
+    return 4, False
+
+
 def parse_rsc_deluxe_subtypes(rsc_text: str, ship_cls: str, guests: int) -> list[dict]:
     rooms = []
     for line in rsc_text.splitlines():
@@ -119,6 +145,7 @@ def parse_rsc_deluxe_subtypes(rsc_text: str, ship_cls: str, guests: int) -> list
                 code = str(sub.get("code") or "SUITE").strip().upper()
                 raw_name = str(sub.get("name") or "Suite").strip()
                 tier = classify_subtype_tier(sub, ship_cls)
+                max_guests, pullman_warning = extract_max_occupancy(sub, code, ship_cls)
                 if tier == "Guarantee":
                     display_name = f"We Choose Your Suite - Guarantee ({code})"
                 else:
@@ -130,6 +157,8 @@ def parse_rsc_deluxe_subtypes(rsc_text: str, ship_cls: str, guests: int) -> list
                     "display_name": display_name,
                     "guarantee": tier == "Guarantee",
                     "tier": tier,
+                    "max_guests": max_guests,
+                    "pullman_warning": pullman_warning,
                     "pricing": {
                         "guests": guests,
                         "base_pp": base_pp_f,
@@ -371,6 +400,8 @@ def enrich_suites_json(
                 grouped.setdefault(t, []).append({
                     "code": code,
                     "display_name": r_info["display_name"],
+                    "max_guests": r_info.get("max_guests", 4),
+                    "pullman_warning": bool(r_info.get("pullman_warning", False)),
                     "pricing_2a": p2,
                     "pricing_quad": p4,
                     "sort_price": (p4 or p2)["cabin_total"],
@@ -419,6 +450,17 @@ def enrich_suites_json(
                     "amenities": SUITE_TIER_AMENITIES.get(t, ""),
                     "pricing_2a": best_2a["pricing_2a"] if best_2a else None,
                     "pricing_quad": best_quad["pricing_quad"] if best_quad else None,
+                    "rooms": [
+                        {
+                            "code": r["code"],
+                            "display_name": r["display_name"],
+                            "max_guests": r["max_guests"],
+                            "pullman_warning": r["pullman_warning"],
+                            "pricing_2a": r["pricing_2a"],
+                            "pricing_quad": r["pricing_quad"],
+                        }
+                        for r in sorted(t_rooms, key=lambda x: x["sort_price"])
+                    ],
                     "is_live_exact": True,
                 }
 

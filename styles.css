@@ -2016,3 +2016,83 @@ body {
   }
 }
 
+/* 5+ Guest Multi-Room vs Single-Room Mode Selector */
+.room-mode-box {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.room-mode-box.hidden {
+  display: none;
+}
+
+.room-mode-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.room-mode-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.room-mode-btn {
+  flex: 1 1 200px;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.room-mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.room-mode-btn.active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: var(--accent);
+  color: #e0f2fe;
+}
+
+.occupancy-warn-note {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 5px;
+}
+
+.two-room-split-tag {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.18rem 0.48rem;
+  font-size: 0.71rem;
+  font-weight: 600;
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  border-radius: 5px;
+}
+
+
