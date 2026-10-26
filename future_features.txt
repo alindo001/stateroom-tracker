@@ -1,0 +1,54 @@
+===============================================================================
+CRUISE TRACKER — FUTURE FEATURES & ROADMAP
+===============================================================================
+
+1. MULTI-CRUISE LINE EXPANSION (Adapter / Normalizer Architecture)
+-------------------------------------------------------------------------------
+Goal:
+  Expand beyond Royal Caribbean into additional major cruise lines while keeping
+  a single unified frontend (`app.js`) and standardized JSON schema.
+
+Architecture Plan:
+  - Build a dedicated Python scraper per cruise line that outputs the same
+    normalized JSON schema (`sailings`, `itineraries`, `pricing_2a`,
+    `pricing_quad`, `tiers`, `ship_class`, `port`, plus a `cruise_line` field).
+  - Run each cruise line in its own isolated parallel job/shard group in
+    `.github/workflows/deploy-pages.yml` so an API change or outage on one line
+    never affects the others.
+
+Priority Order by Technical Compatibility:
+  a) Celebrity Cruises (Phase 1 - Easiest):
+     - Part of Royal Caribbean Group (RCL); shares the same GraphQL +
+       `/room-selection/type-and-subtype` backend architecture.
+     - Suite Tiers: "The Retreat" (Sky Suite, Aqua Sky Suite, Celebrity Suite,
+       Royal Suite, Penthouse Suite, Iconic Suite, Edge Villa).
+  b) MSC Cruises:
+     - Strong suite-tier parallel with "MSC Yacht Club" (ship-within-a-ship
+       luxury complex) vs. Aurea Suites.
+  c) Norwegian Cruise Line (NCL):
+     - Track "The Haven" luxury suite enclave vs. standard Club Balcony / Suites.
+  d) Carnival / Princess / Holland America:
+     - REST/GraphQL search endpoints via `curl_cffi` across parallel runner IPs.
+  e) Disney Cruise Line (DCL):
+     - Track Concierge-level staterooms & suites vs. Verandah/Deluxe Family
+       staterooms (may require Playwright session bootstrap before API calls).
+
+
+2. HISTORICAL PRICE TRACKING & PRICE-DROP ALERTS
+-------------------------------------------------------------------------------
+Goal:
+  Track how prices change over time across the 12-hour scrape snapshots.
+
+Ideas:
+  - Maintain a compact `data/price_history.json` artifact that records daily
+    minimum `2A` and `2A+2C` prices per `(ship_code, sail_date, tier)`.
+  - Highlight "Biggest Price Drops (Last 7 / 30 Days)" on the dashboard.
+  - Display a sparkline or "Was $X -> Now $Y" badge on sailing rows.
+
+
+3. SUB-CATEGORY ROOM ENRICHMENT FOR STANDARD STATEROOMS (`staterooms.html`)
+-------------------------------------------------------------------------------
+Goal:
+  Bring the same exact subtype room breakdown used on `suites.html` to
+  `staterooms.html` (e.g., separating Ocean View Balcony vs. Central Park
+  View Balcony vs. Boardwalk View Balcony vs. Guarantee Balcony).

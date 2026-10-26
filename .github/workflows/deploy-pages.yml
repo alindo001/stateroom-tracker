@@ -3,6 +3,9 @@ name: Update Prices & Deploy GitHub Pages
 on:
   push:
     branches: ["main", "master"]
+    paths-ignore:
+      - "**.txt"
+      - "**.md"
   schedule:
     # Refresh suite & stateroom prices every 12 hours
     - cron: "0 */12 * * *"
