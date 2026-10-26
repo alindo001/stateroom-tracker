@@ -99,6 +99,9 @@
                   <button type="button" class="room-mode-btn" data-room-mode="two_rooms" id="mode-btn-two">
                     2 Rooms Online (Split Party)
                   </button>
+                  <button type="button" class="room-mode-btn" data-room-mode="single_room_5p" id="mode-btn-5p">
+                    1 Room Estimate (5+ Occupancy Only &bull; Call Royal)
+                  </button>
                 </div>
               </div>
               <div class="party-note" id="party-note">
@@ -110,15 +113,15 @@
           <!-- Stateroom Category Checkboxes -->
           <div class="tier-box">
             <div class="tier-box-header">
-              <span class="filter-section-title">Stateroom Categories (Interior, Ocean View &amp; Balcony)</span>
-              <span class="tier-box-hint">Check the stateroom types you want to compare &bull; Shows the lowest available rate among checked types</span>
+              <span class="filter-section-title">Stateroom Categories (Assigned Rooms by Default)</span>
+              <span class="tier-box-hint">Assigned rooms let you pick your exact cabin &bull; Check &ldquo;We Choose Your Room&rdquo; to include unassigned Guarantee rates</span>
             </div>
             <div class="tier-checkbox-grid">
               <label class="tier-check-card tier-card-standard">
                 <input type="checkbox" class="tier-checkbox" value="Interior" checked />
                 <div class="tier-check-body">
                   <div class="tier-check-title">Interior <span class="tier-count" id="tier-count-Interior"></span></div>
-                  <div class="tier-check-desc">Interior, Connected &amp; Promenade/Park View &bull; Best value on board with full ship access</div>
+                  <div class="tier-check-desc">Interior (V), Promenade &amp; Spacious Interior (R) &bull; Pick your exact cabin location</div>
                 </div>
               </label>
 
@@ -126,7 +129,7 @@
                 <input type="checkbox" class="tier-checkbox" value="OceanView" checked />
                 <div class="tier-check-body">
                   <div class="tier-check-title">Ocean View <span class="tier-count" id="tier-count-OceanView"></span></div>
-                  <div class="tier-check-desc">Ocean View &amp; Spacious Ocean View &bull; Natural light with ocean-facing window or porthole</div>
+                  <div class="tier-check-desc">Ocean View (N) &amp; Ultra Spacious Ocean View (K) &bull; Ocean-facing window or porthole</div>
                 </div>
               </label>
 
@@ -134,7 +137,15 @@
                 <input type="checkbox" class="tier-checkbox" value="Balcony" checked />
                 <div class="tier-check-body">
                   <div class="tier-check-title">Balcony <span class="tier-count" id="tier-count-Balcony"></span></div>
-                  <div class="tier-check-desc">Ocean View, Infinite &amp; Neighborhood Balcony &bull; Private veranda with floor-to-ceiling views</div>
+                  <div class="tier-check-desc">Ocean View (D/C), Central Park (J) &amp; Boardwalk (CN) Balcony &bull; Private veranda</div>
+                </div>
+              </label>
+
+              <label class="tier-check-card tier-card-guarantee">
+                <input type="checkbox" class="tier-checkbox" value="Guarantee" />
+                <div class="tier-check-body">
+                  <div class="tier-check-title">We Choose Your Room (Guarantee) <span class="tier-count" id="tier-count-Guarantee"></span></div>
+                  <div class="tier-check-desc">Unassigned Guarantee Rates (ZI / YO / XN / XB) &bull; Royal assigns your exact room prior to sailing</div>
                 </div>
               </label>
             </div>

@@ -2,7 +2,7 @@ const APP_MODE = document.body?.dataset?.mode || "suites";
 const IS_STATEROOMS = APP_MODE === "staterooms";
 
 const ALL_TIERS = IS_STATEROOMS
-  ? ["Interior", "OceanView", "Balcony"]
+  ? ["Interior", "OceanView", "Balcony", "Guarantee"]
   : ["Sea", "Sky", "Star", "Standard", "Guarantee"];
 
 const DEFAULT_TIERS = IS_STATEROOMS
@@ -179,7 +179,7 @@ function getTierDisplayLabel(tierKey) {
     Sky: "Sky Class",
     Star: "Star Class",
     Standard: "Standard Suite",
-    Guarantee: "Suite Guarantee",
+    Guarantee: IS_STATEROOMS ? "Room Guarantee" : "Suite Guarantee",
     Interior: "Interior",
     OceanView: "Ocean View",
     Balcony: "Balcony",
@@ -193,7 +193,7 @@ function getTierBadgeHtml(tierKey, roomName = "") {
     Sky: "Sky Class",
     Star: "Star Class",
     Standard: "Standard Suite",
-    Guarantee: "Suite Guarantee (WS)",
+    Guarantee: IS_STATEROOMS ? "We Choose Your Room (Guarantee)" : "Suite Guarantee (WS)",
     Interior: "Interior",
     OceanView: "Ocean View",
     Balcony: "Balcony",
@@ -228,7 +228,7 @@ function getRoomOccupancyInfo(roomNameOrCode, shipClass) {
   if (["UL", "TH", "US", "A1", "A2", "GT", "OT"].includes(code)) {
     return { code, maxGuests: 8, pullmanWarning: false };
   }
-  if (["RL", "VY"].includes(code)) {
+  if (["RL", "VY", "K", "1K", "R", "1R", "1A"].includes(code)) {
     return { code, maxGuests: 6, pullmanWarning: false };
   }
   if (["JS", "JY", "J1", "CJ"].includes(code) && clsLower !== "icon") {
@@ -441,7 +441,7 @@ function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
 
 function getEffectiveRoomMode(totalGuests) {
   if (totalGuests > 4) {
-    if (!IS_STATEROOMS && state.roomMode === "single_room_5p") {
+    if (state.roomMode === "single_room_5p") {
       return "single_room_5p";
     }
     return "two_rooms";
@@ -461,9 +461,35 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let p4 = tierObj ? tierObj.pricing_quad : raw.pricing_quad;
   let customRoomName = null;
   let customOtherRooms = null;
+  let customRoyalType = null;
   let occupancyWarning = "";
   let twoRoomSplitNote = "";
   let isTwoRooms = effectiveRoomMode === "two_rooms";
+
+  // On Staterooms page, if "Guarantee" is checked alongside specific categories (e.g. Balcony only),
+  // filter the Guarantee tier's rooms to match the checked parent categories
+  if (IS_STATEROOMS && tierKey === "Guarantee" && Array.isArray(tierObj?.rooms)) {
+    const parentMap = { Interior: "INTERIOR", OceanView: "OUTSIDE", Balcony: "BALCONY" };
+    const checkedParents = ["Interior", "OceanView", "Balcony"]
+      .filter((t) => state.filters.suiteTiers.has(t))
+      .map((t) => parentMap[t]);
+    if (checkedParents.length > 0 && checkedParents.length < 3) {
+      const matchingGuar = tierObj.rooms.filter((r) => checkedParents.includes(r.royal_type));
+      if (matchingGuar.length === 0) return null;
+      const g2a = matchingGuar
+        .filter((r) => r.pricing_2a)
+        .sort((a, b) => a.pricing_2a.cabin_total - b.pricing_2a.cabin_total)[0];
+      const gQuad = matchingGuar
+        .filter((r) => r.pricing_quad)
+        .sort((a, b) => a.pricing_quad.cabin_total - b.pricing_quad.cabin_total)[0];
+      p2 = g2a ? g2a.pricing_2a : null;
+      p4 = gQuad ? gQuad.pricing_quad : null;
+      const chosenG = totalGuests <= 2 ? g2a || gQuad : gQuad || g2a;
+      if (!chosenG) return null;
+      customRoomName = chosenG.display_name;
+      customRoyalType = chosenG.royal_type;
+    }
+  }
 
   if (effectiveRoomMode === "single_room_5p") {
     const capRoom = findCapable5PlusRoomForTier(raw, tierObj, totalGuests);
@@ -478,7 +504,7 @@ function computeTierCandidate(raw, tierKey, adults, children) {
       occupancyWarning =
         "Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling Royal Caribbean is required.";
     } else {
-      occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 suite. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
+      occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 ${ITEMS_LOWER}. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
     }
   }
 
@@ -536,11 +562,29 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     cabinBase = Number((room1Base + room2Base).toFixed(2));
     cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
     cabinDiscount = Number((discount2Guests * 2).toFixed(2));
+
+    const room1Name =
+      customRoomName ||
+      (split.room1Total <= 2 ? tierObj?.room_name_2a : tierObj?.room_name_quad) ||
+      tierObj?.room_name ||
+      raw.category ||
+      ITEM_LABEL;
+    const room2Name =
+      customRoomName ||
+      (split.room2Total <= 2 ? tierObj?.room_name_2a : tierObj?.room_name_quad) ||
+      tierObj?.room_name ||
+      raw.category ||
+      ITEM_LABEL;
+
+    if (!customRoomName && room1Name !== room2Name) {
+      customRoomName = `${room1Name} + ${room2Name}`;
+    }
+
     const r0Label = `${split.r0a}A${split.r0c > 0 ? `+${split.r0c}C` : ""}`;
     const r1Label = `${split.r1a}A${split.r1c > 0 ? `+${split.r1c}C` : ""}`;
     twoRoomSplitNote =
-      `Room 1 (${r0Label}): ${formatMoney(room1TotalPrice)} (${formatMoney(room1Pp)}/pp) • ` +
-      `Room 2 (${r1Label}): ${formatMoney(room2TotalPrice)} (${formatMoney(room2Pp)}/pp)`;
+      `Room 1 (${r0Label}) — ${room1Name}: ${formatMoney(room1TotalPrice)} (${formatMoney(room1Pp)}/pp) • ` +
+      `Room 2 (${r1Label}) — ${room2Name}: ${formatMoney(room2TotalPrice)} (${formatMoney(room2Pp)}/pp)`;
   } else if (totalGuests > 4 && effectiveRoomMode === "single_room_5p" && p4) {
     // Use the 5+ guest suite's exact 4-guest price as baseline and add the 5th+ guest fare
     const extraBeyond4 = Math.max(0, totalGuests - 4);
@@ -585,7 +629,7 @@ function computeTierCandidate(raw, tierKey, adults, children) {
         "";
   const amenities = tierObj?.amenities || "";
   const isLiveExact = Boolean(tierObj?.is_live_exact);
-  const royalType = tierObj?.royal_type || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
+  const royalType = customRoyalType || tierObj?.royal_type || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
 
   return {
     active_tier: tierKey,
@@ -1474,7 +1518,7 @@ function bindEvents() {
         if (state.adults + state.children < 2) {
           state.adults = 2;
         }
-      } else if (mode === "single_room_5p" && !IS_STATEROOMS) {
+      } else if (mode === "single_room_5p") {
         state.roomMode = "single_room_5p";
         if (state.adults + state.children < 5) {
           state.children = Math.max(1, 5 - state.adults);
