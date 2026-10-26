@@ -1673,26 +1673,27 @@ body {
   }
 
   .kpi-grid {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.38rem;
-    margin-top: 0.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-top: 0.65rem;
   }
 
   .kpi-card {
-    padding: 0.48rem 0.5rem;
+    padding: 0.52rem 0.65rem;
     border-radius: 8px;
+    min-width: 0;
   }
 
   .kpi-label {
-    font-size: 0.6rem;
-    letter-spacing: 0.02em;
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .kpi-value {
-    font-size: 1.02rem;
+    font-size: 1.12rem;
   }
 
   .kpi-sub {

@@ -30,30 +30,6 @@
   </header>
 
   <main class="container">
-    <!-- Summary KPI Cards -->
-    <section class="kpi-grid" id="kpi-grid">
-      <div class="kpi-card">
-        <span class="kpi-label">Matching Itineraries</span>
-        <strong class="kpi-value" id="kpi-itineraries">--</strong>
-        <span class="kpi-sub" id="kpi-scanned">with available staterooms</span>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">Matching Sailings</span>
-        <strong class="kpi-value" id="kpi-sailings">--</strong>
-        <span class="kpi-sub" id="kpi-sailings-sub">individual departure dates</span>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">Kids Sail Free Promos</span>
-        <strong class="kpi-value kpi-promo" id="kpi-promos">--</strong>
-        <span class="kpi-sub" id="kpi-holidays">-- holiday/blackout dates</span>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-label">Lowest Stateroom Total</span>
-        <strong class="kpi-value kpi-accent" id="kpi-lowest">--</strong>
-        <span class="kpi-sub" id="kpi-lowest-sub">incl. taxes &amp; fees</span>
-      </div>
-    </section>
-
     <!-- Interactive Filter & Family Size Panel -->
     <section class="filter-panel" id="filter-panel" aria-label="Filters and Party Size">
       <button type="button" class="mobile-filter-toggle" id="mobile-filter-toggle" aria-expanded="true">
@@ -245,6 +221,30 @@
           <span class="saved-indicator" id="saved-prefs-badge" title="Your filters, ports, and party size are saved in your browser's localStorage">Filters saved</span>
           <button type="button" class="reset-btn" id="reset-filters-btn">Reset All Filters</button>
         </div>
+      </div>
+    </section>
+
+    <!-- Summary KPI Cards -->
+    <section class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-label">Matching Itineraries</span>
+        <strong class="kpi-value" id="kpi-itineraries">--</strong>
+        <span class="kpi-sub" id="kpi-scanned">with available staterooms</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Matching Sailings</span>
+        <strong class="kpi-value" id="kpi-sailings">--</strong>
+        <span class="kpi-sub" id="kpi-sailings-sub">individual departure dates</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Kids Sail Free Promos</span>
+        <strong class="kpi-value kpi-promo" id="kpi-promos">--</strong>
+        <span class="kpi-sub" id="kpi-holidays">-- holiday/blackout dates</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Lowest Stateroom Total</span>
+        <strong class="kpi-value kpi-accent" id="kpi-lowest">--</strong>
+        <span class="kpi-sub" id="kpi-lowest-sub">incl. taxes &amp; fees</span>
       </div>
     </section>
 
