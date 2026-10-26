@@ -276,7 +276,6 @@ function getSuiteTierCellHtml(sailing) {
     <div class="suite-cell-header">
       ${getTierBadgeHtml(tierKey)}
       <span class="suite-lead-room" title="Entry-level room for this category price">${escapeHtml(roomName)}</span>
-      ${isLive ? `<span class="live-price-tag" title="Exact room price verified from Royal Caribbean">${IS_STATEROOMS ? "Live Rate" : "Live Room Price"}</span>` : ""}
     </div>
     ${twoRoomNote ? `<span class="two-room-split-tag">${escapeHtml(twoRoomNote)}</span>` : ""}
     ${occWarn ? `<span class="occupancy-warn-note">${escapeHtml(occWarn)}</span>` : ""}
