@@ -1,5 +1,7 @@
 import argparse
+import glob
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -186,12 +188,88 @@ CLASS_PRIORITY = {
 }
 
 
+def rebuild_itineraries_and_save(data: dict, json_path: str):
+    sailings = data["sailings"]
+    itin_map = {}
+    for d in sailings:
+        code = d["itinerary_code"]
+        if code not in itin_map:
+            itin_map[code] = {
+                "itinerary_code": code,
+                "itinerary_name": d["itinerary_name"],
+                "ship": d["ship"],
+                "ship_code": d.get("ship_code", ""),
+                "ship_class": d["ship_class"],
+                "nights": d["nights"],
+                "port": d["port"],
+                "port_code": d.get("port_code", ""),
+                "suite_tier": d.get("suite_tier", "Standard"),
+                "available_tiers": d.get("available_tiers", []),
+                "sailing_count": 0,
+                "promo_count": 0,
+                "lowest_cabin_total": d["cabin_total"],
+                "lowest_total_pp": d["total_pp"],
+                "lowest_sail_date": d["date"],
+                "sail_dates": [],
+            }
+        it = itin_map[code]
+        it["sailing_count"] += 1
+        if d.get("is_ksf_promo"):
+            it["promo_count"] += 1
+        it["sail_dates"].append(d["date"])
+        if d["cabin_total"] < it["lowest_cabin_total"]:
+            it["lowest_cabin_total"] = d["cabin_total"]
+            it["lowest_total_pp"] = d["total_pp"]
+            it["lowest_sail_date"] = d["date"]
+            it["suite_tier"] = d.get("suite_tier", "Standard")
+            it["available_tiers"] = d.get("available_tiers", [])
+
+    for it in itin_map.values():
+        it["sail_dates"].sort()
+
+    data["itineraries"] = sorted(itin_map.values(), key=lambda x: (x["lowest_cabin_total"], x["ship"]))
+    if "summary" in data and isinstance(data["summary"], dict):
+        data["summary"]["itineraries_with_suites"] = len(data["itineraries"])
+        data["summary"]["total_suite_sailings"] = len(sailings)
+        data["summary"]["promo_sailings"] = sum(1 for d in sailings if d.get("is_ksf_promo"))
+        data["summary"]["holiday_sailings"] = sum(1 for d in sailings if d.get("is_holiday_rate"))
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def merge_shard_files(json_path: str, shard_glob: str):
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    sailings = data["sailings"]
+    shard_files = sorted(glob.glob(shard_glob))
+    merged_count = 0
+    for sf in shard_files:
+        with open(sf, "r", encoding="utf-8") as f:
+            shard_map = json.load(f)
+        for idx_str, updated_sailing in shard_map.items():
+            idx = int(idx_str)
+            if 0 <= idx < len(sailings):
+                sailings[idx] = updated_sailing
+                merged_count += 1
+
+    rebuild_itineraries_and_save(data, json_path)
+    total_live = sum(
+        1 for s in sailings if any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
+    )
+    print(f"Merged {merged_count} enriched sailings from {len(shard_files)} shards into {json_path} (Total live: {total_live}/{len(sailings)}).")
+
+
 def enrich_suites_json(
     json_path: str = "data/suites.json",
     ship_classes: list[str] | None = None,
     workers: int = 6,
     force: bool = False,
     max_sailings: int = 550,
+    shard_index: int | None = None,
+    shard_count: int | None = None,
+    output_shard: str | None = None,
 ):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -199,43 +277,39 @@ def enrich_suites_json(
     sailings = data["sailings"]
     cls_lower = {c.lower() for c in ship_classes} if ship_classes else None
 
-    candidates = []
-    for i, s in enumerate(sailings):
-        s_cls = (s.get("ship_class") or "").lower()
-        if cls_lower and s_cls not in cls_lower:
-            continue
-        has_live = any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
-        if not force and has_live:
-            continue
-        enriched_at = s.get("enriched_at") or ""
-        cls_prio = CLASS_PRIORITY.get(s_cls, 9)
-        candidates.append((0 if not has_live else 1, cls_prio, enriched_at, i, s))
-
-    # If all sailings already have live data and we have remaining capacity in max_sailings,
-    # also refresh the oldest-enriched Royal Suite Class sailings
-    if len(candidates) < max_sailings and not force:
-        already_queued = {item[3] for item in candidates}
-        refresh_pool = []
+    if shard_index is not None and shard_count is not None and shard_count > 0:
+        targets = [
+            (i, s)
+            for i, s in enumerate(sailings)
+            if (i % shard_count == shard_index)
+            and (not cls_lower or (s.get("ship_class") or "").lower() in cls_lower)
+            and (force or not any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values()))
+        ]
+    else:
+        candidates = []
         for i, s in enumerate(sailings):
-            if i in already_queued:
-                continue
             s_cls = (s.get("ship_class") or "").lower()
             if cls_lower and s_cls not in cls_lower:
                 continue
+            has_live = any(v.get("is_live_exact") for v in (s.get("tiers") or {}).values())
+            if not force and has_live:
+                continue
             enriched_at = s.get("enriched_at") or ""
             cls_prio = CLASS_PRIORITY.get(s_cls, 9)
-            refresh_pool.append((1, cls_prio, enriched_at, i, s))
-        refresh_pool.sort(key=lambda x: (x[1], x[2]))
-        candidates.extend(refresh_pool[: max(0, max_sailings - len(candidates))])
+            candidates.append((0 if not has_live else 1, cls_prio, enriched_at, i, s))
 
-    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
-    targets = [(item[3], item[4]) for item in candidates[:max_sailings]]
+        candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+        targets = [(item[3], item[4]) for item in candidates[:max_sailings]]
 
-    print(f"Enriching {len(targets)} sailings from {json_path} with live room-selection subtypes (workers={workers})...")
+    print(
+        f"Enriching {len(targets)} sailings from {json_path} "
+        f"(shard={shard_index}/{shard_count}, workers={workers})..."
+    )
     t0 = time.time()
     updated = 0
     consecutive_403 = 0
     now_iso = datetime.now(timezone.utc).isoformat()
+    shard_results = {}
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(fetch_sailing_subtypes, item) for item in targets]
@@ -377,48 +451,22 @@ def enrich_suites_json(
                     else:
                         s["rate_tag"] = f"HOLIDAY/BLACKOUT: 3rd/4th +${extra_pp:.2f}/ea (-${disc} off)"
 
+                shard_results[str(idx)] = s
                 updated += 1
 
             if count % 25 == 0 or count == len(targets):
                 print(f"  Progress: {count}/{len(targets)} ({updated} enriched) in {time.time()-t0:.1f}s", flush=True)
 
-    itin_map = {}
-    for d in sailings:
-        code = d["itinerary_code"]
-        if code not in itin_map:
-            itin_map[code] = {
-                "itinerary_code": code,
-                "itinerary_name": d["itinerary_name"],
-                "ship": d["ship"],
-                "ship_code": d.get("ship_code", ""),
-                "ship_class": d["ship_class"],
-                "nights": d["nights"],
-                "port": d["port"],
-                "port_code": d.get("port_code", ""),
-                "suite_tier": d.get("suite_tier", "Standard"),
-                "available_tiers": d.get("available_tiers", []),
-                "sailing_count": 0,
-                "promo_count": 0,
-                "lowest_cabin_total": d["cabin_total"],
-                "lowest_total_pp": d["total_pp"],
-                "lowest_sail_date": d["date"],
-                "sail_dates": [],
-            }
-        it = itin_map[code]
-        it["sailing_count"] += 1
-        if d.get("is_ksf_promo"):
-            it["promo_count"] += 1
-        it["sail_dates"].append(d["date"])
-        if d["cabin_total"] < it["lowest_cabin_total"]:
-            it["lowest_cabin_total"] = d["cabin_total"]
-            it["lowest_total_pp"] = d["total_pp"]
-            it["lowest_sail_date"] = d["date"]
-            it["suite_tier"] = d.get("suite_tier", "Standard")
-            it["available_tiers"] = d.get("available_tiers", [])
+    if output_shard:
+        out_dir = os.path.dirname(output_shard)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(output_shard, "w", encoding="utf-8") as f:
+            json.dump(shard_results, f)
+        print(f"Saved shard {shard_index}/{shard_count} ({updated}/{len(targets)} sailings) to {output_shard} in {time.time()-t0:.1f}s.")
+        return
 
-    data["itineraries"] = sorted(itin_map.values(), key=lambda x: (x["lowest_cabin_total"], x["ship"]))
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    rebuild_itineraries_and_save(data, json_path)
     print(f"Done! Enriched {updated}/{len(targets)} sailings in {time.time()-t0:.1f}s.")
 
 
@@ -427,9 +475,25 @@ if __name__ == "__main__":
     parser.add_argument("--json", default="data/suites.json", help="Path to suites.json")
     parser.add_argument("--ship-class", default="all", help="Comma-separated ship classes to enrich (e.g. Icon,Oasis) or 'all' (default: all)")
     parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
-    parser.add_argument("--max-sailings", type=int, default=550, help="Max sailings to enrich per run to stay under Akamai limits (default: 550)")
+    parser.add_argument("--max-sailings", type=int, default=550, help="Max sailings to enrich per single-node run (default: 550)")
+    parser.add_argument("--shard-index", type=int, default=None, help="0-based shard index for parallel CI jobs")
+    parser.add_argument("--shard-count", type=int, default=None, help="Total number of parallel shards")
+    parser.add_argument("--output-shard", type=str, default=None, help="Output file path for shard JSON")
+    parser.add_argument("--merge-shards", type=str, default=None, help="Glob pattern of shard JSON files to merge into --json")
     parser.add_argument("--force", action="store_true", help="Re-enrich sailings even if already marked is_live_exact")
     args = parser.parse_args()
-    classes = None if args.ship_class.lower() == "all" else [c.strip() for c in args.ship_class.split(",") if c.strip()]
-    enrich_suites_json(args.json, classes, args.workers, force=args.force, max_sailings=args.max_sailings)
+    if args.merge_shards:
+        merge_shard_files(args.json, args.merge_shards)
+    else:
+        classes = None if args.ship_class.lower() == "all" else [c.strip() for c in args.ship_class.split(",") if c.strip()]
+        enrich_suites_json(
+            args.json,
+            classes,
+            args.workers,
+            force=args.force,
+            max_sailings=args.max_sailings,
+            shard_index=args.shard_index,
+            shard_count=args.shard_count,
+            output_shard=args.output_shard,
+        )
 

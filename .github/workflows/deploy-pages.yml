@@ -18,7 +18,76 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  prepare-catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch fresh baseline Staterooms & Suites catalogs
+        run: |
+          pip install curl_cffi
+          python fetch_staterooms.py
+          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
+
+      - name: Upload baseline catalogs
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-catalogs
+          path: |
+            data/suites.json
+            data/staterooms.json
+          retention-days: 1
+
+  enrich-suite-shards:
+    needs: prepare-catalogs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download baseline catalogs
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-catalogs
+          path: data
+
+      - name: Enrich suite shard ${{ matrix.shard }} of 6
+        run: |
+          pip install curl_cffi
+          python enrich_subtypes.py \
+            --json data/suites.json \
+            --ship-class all \
+            --shard-index ${{ matrix.shard }} \
+            --shard-count 6 \
+            --workers 5 \
+            --force \
+            --output-shard shards/shard-${{ matrix.shard }}.json
+
+      - name: Upload enriched shard ${{ matrix.shard }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-shard-${{ matrix.shard }}
+          path: shards/shard-${{ matrix.shard }}.json
+          retention-days: 1
+
+  merge-and-deploy:
+    needs: [prepare-catalogs, enrich-suite-shards]
+    if: always() && needs.prepare-catalogs.result == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -32,22 +101,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Refresh Suites + Staterooms catalogs (scheduled or manual trigger)
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        continue-on-error: true
-        run: |
-          pip install curl_cffi
-          curl -fsSL https://alindo001.github.io/stateroom-tracker/data/suites.json -o data/suites.json || true
-          python fetch_staterooms.py
-          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
-          python enrich_subtypes.py --ship-class all --workers 6 --max-sailings 550
+      - name: Download baseline catalogs
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-catalogs
+          path: data
 
-      - name: Enrich any remaining Royal Suite Class sailings on push
-        if: github.event_name == 'push'
-        continue-on-error: true
+      - name: Download all enriched suite shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: suite-shard-*
+          path: shards
+          merge-multiple: true
+
+      - name: Merge enriched shards into suites.json
         run: |
-          pip install curl_cffi
-          python enrich_subtypes.py --ship-class Icon,Oasis,Quantum --workers 6 --max-sailings 550
+          python enrich_subtypes.py --json data/suites.json --merge-shards "shards/shard-*.json"
 
       - name: Assemble clean static site bundle
         run: |
