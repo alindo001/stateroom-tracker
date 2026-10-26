@@ -6,12 +6,17 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from curl_cffi import requests
+try:
+    from curl_cffi import requests
+except ImportError:
+    requests = None
 
 _thread_local = threading.local()
 
 
 def get_thread_session():
+    if requests is None:
+        raise RuntimeError("curl_cffi is required for HTTP enrichment")
     if not hasattr(_thread_local, "session"):
         _thread_local.session = requests.Session(impersonate="chrome")
     return _thread_local.session
