@@ -529,12 +529,18 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     const r2Extra = Math.max(0, split.room2Total - 2);
     const room1Base = base2Guests + r1Extra * extraGuestFarePp;
     const room2Base = base2Guests + r2Extra * extraGuestFarePp;
+    const room1TotalPrice = Number((room1Base + taxesPp * split.room1Total).toFixed(2));
+    const room2TotalPrice = Number((room2Base + taxesPp * split.room2Total).toFixed(2));
+    const room1Pp = Number((room1TotalPrice / split.room1Total).toFixed(2));
+    const room2Pp = Number((room2TotalPrice / split.room2Total).toFixed(2));
     cabinBase = Number((room1Base + room2Base).toFixed(2));
     cabinTaxes = Number((taxesPp * totalGuests).toFixed(2));
     cabinDiscount = Number((discount2Guests * 2).toFixed(2));
     const r0Label = `${split.r0a}A${split.r0c > 0 ? `+${split.r0c}C` : ""}`;
     const r1Label = `${split.r1a}A${split.r1c > 0 ? `+${split.r1c}C` : ""}`;
-    twoRoomSplitNote = `2 Rooms Online (Room 1: ${r0Label} • Room 2: ${r1Label})`;
+    twoRoomSplitNote =
+      `Room 1 (${r0Label}): ${formatMoney(room1TotalPrice)} (${formatMoney(room1Pp)}/pp) • ` +
+      `Room 2 (${r1Label}): ${formatMoney(room2TotalPrice)} (${formatMoney(room2Pp)}/pp)`;
   } else if (totalGuests > 4 && effectiveRoomMode === "single_room_5p" && p4) {
     // Use the 5+ guest suite's exact 4-guest price as baseline and add the 5th+ guest fare
     const extraBeyond4 = Math.max(0, totalGuests - 4);
