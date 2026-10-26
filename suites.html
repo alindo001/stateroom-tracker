@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta name="googlebot" content="noindex, nofollow" />
   <title>Stateroom Tracker — Suites | Sea, Sky &amp; Star Class</title>
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body data-mode="suites">
   <header class="site-header">
@@ -90,13 +90,16 @@
                   <button type="button" class="step-btn" id="children-plus" aria-label="Increase children">+</button>
                 </div>
               </div>
-              <div class="room-mode-box hidden" id="room-mode-box">
-                <span class="room-mode-label">5+ Guest Booking Mode (Royal caps online single-room bookings at 4):</span>
+              <div class="room-mode-box" id="room-mode-box">
+                <span class="room-mode-label" id="room-mode-label">Room Booking Mode (Royal caps online single-room bookings at 4 guests):</span>
                 <div class="room-mode-btns">
-                  <button type="button" class="room-mode-btn active" data-room-mode="two_rooms">
-                    2 Rooms Online (Exact Split Price)
+                  <button type="button" class="room-mode-btn active" data-room-mode="single_room" id="mode-btn-single">
+                    1 Room Online (1&ndash;4 Guests)
                   </button>
-                  <button type="button" class="room-mode-btn" data-room-mode="single_room_5p">
+                  <button type="button" class="room-mode-btn" data-room-mode="two_rooms" id="mode-btn-two">
+                    2 Rooms Online (Split Party)
+                  </button>
+                  <button type="button" class="room-mode-btn" data-room-mode="single_room_5p" id="mode-btn-5p">
                     1 Suite Estimate (5+ Occupancy Only &bull; Call Royal)
                   </button>
                 </div>
@@ -318,7 +321,7 @@
     </div>
   </footer>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
 

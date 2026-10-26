@@ -43,7 +43,7 @@ const state = {
   sortBy: "total_asc",
   adults: 2,
   children: 2,
-  roomMode: "two_rooms", // "two_rooms" | "single_room_5p" (used when adults + children > 4)
+  roomMode: "single_room", // "single_room" (1-4 guests) | "two_rooms" (2-8 guests) | "single_room_5p" (5-8 guests)
   allAvailablePorts: new Map(), // code -> { name, count }
   customPorts: new Map(),       // code -> name
   filters: {
@@ -110,8 +110,8 @@ function loadStateFromStorage() {
     if (Number.isInteger(saved.children) && saved.children >= 0 && saved.children <= 6) {
       state.children = saved.children;
     }
-    if (saved.roomMode === "two_rooms" || saved.roomMode === "single_room_5p") {
-      state.roomMode = IS_STATEROOMS ? "two_rooms" : saved.roomMode;
+    if (saved.roomMode === "single_room" || saved.roomMode === "two_rooms" || saved.roomMode === "single_room_5p") {
+      state.roomMode = IS_STATEROOMS && saved.roomMode === "single_room_5p" ? "two_rooms" : saved.roomMode;
     }
     if (Array.isArray(saved.customPorts)) {
       state.customPorts = new Map(saved.customPorts);
@@ -305,7 +305,7 @@ function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE", isTwoRo
     });
   }
 
-  if (totalGuests > 4 && isTwoRooms) {
+  if (isTwoRooms && totalGuests >= 2) {
     const split = splitPartyAcrossTwoRooms(Number(adults) || 2, Number(children) || 0);
     params.set("r0a", String(split.r0a));
     params.set("r0c", String(split.r0c));
@@ -439,10 +439,23 @@ function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
   };
 }
 
+function getEffectiveRoomMode(totalGuests) {
+  if (totalGuests > 4) {
+    if (!IS_STATEROOMS && state.roomMode === "single_room_5p") {
+      return "single_room_5p";
+    }
+    return "two_rooms";
+  }
+  if (state.roomMode === "two_rooms" && totalGuests >= 2) {
+    return "two_rooms";
+  }
+  return "single_room";
+}
+
 function computeTierCandidate(raw, tierKey, adults, children) {
   const totalGuests = adults + children;
   const tierObj = (raw.tiers && raw.tiers[tierKey]) || null;
-  const effectiveRoomMode = IS_STATEROOMS ? "two_rooms" : state.roomMode;
+  const effectiveRoomMode = getEffectiveRoomMode(totalGuests);
 
   let p2 = tierObj ? tierObj.pricing_2a : raw.pricing_2a;
   let p4 = tierObj ? tierObj.pricing_quad : raw.pricing_quad;
@@ -450,26 +463,22 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let customOtherRooms = null;
   let occupancyWarning = "";
   let twoRoomSplitNote = "";
-  let isTwoRooms = false;
+  let isTwoRooms = effectiveRoomMode === "two_rooms";
 
-  if (totalGuests > 4) {
-    if (effectiveRoomMode === "single_room_5p") {
-      const capRoom = findCapable5PlusRoomForTier(raw, tierObj, totalGuests);
-      if (!capRoom) {
-        return null;
-      }
-      p2 = capRoom.p2;
-      p4 = capRoom.p4;
-      customRoomName = capRoom.roomName;
-      customOtherRooms = capRoom.otherRooms;
-      if (capRoom.pullmanWarning) {
-        occupancyWarning =
-          "Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling Royal Caribbean is required.";
-      } else {
-        occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 suite. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
-      }
+  if (effectiveRoomMode === "single_room_5p") {
+    const capRoom = findCapable5PlusRoomForTier(raw, tierObj, totalGuests);
+    if (!capRoom) {
+      return null;
+    }
+    p2 = capRoom.p2;
+    p4 = capRoom.p4;
+    customRoomName = capRoom.roomName;
+    customOtherRooms = capRoom.otherRooms;
+    if (capRoom.pullmanWarning) {
+      occupancyWarning =
+        "Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling Royal Caribbean is required.";
     } else {
-      isTwoRooms = true;
+      occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 suite. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
     }
   }
 
@@ -1034,11 +1043,7 @@ function updatePartyUI() {
     chip.classList.toggle("active", a === state.adults && c === state.children);
   });
 
-  const roomModeBox = document.getElementById("room-mode-box");
-  if (roomModeBox) {
-    roomModeBox.classList.toggle("hidden", totalGuests <= 4);
-  }
-  const effectiveRoomMode = IS_STATEROOMS ? "two_rooms" : state.roomMode;
+  const effectiveRoomMode = getEffectiveRoomMode(totalGuests);
   document.querySelectorAll(".room-mode-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.roomMode === effectiveRoomMode);
   });
@@ -1049,19 +1054,17 @@ function updatePartyUI() {
   document.getElementById("party-pill").textContent = `Party: ${partyText}`;
 
   const noteEl = document.getElementById("party-note");
-  if (totalGuests > 4) {
-    if (effectiveRoomMode === "single_room_5p") {
-      noteEl.textContent =
-        `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
-        `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
-    } else {
-      const split = splitPartyAcrossTwoRooms(state.adults, state.children);
-      const r0Label = `${split.r0a}A${split.r0c > 0 ? ` + ${split.r0c}C` : ""}`;
-      const r1Label = `${split.r1a}A${split.r1c > 0 ? ` + ${split.r1c}C` : ""}`;
-      noteEl.textContent =
-        `Showing 2-Room Online Split Pricing for ${partyText} (Room 1: ${r0Label} • Room 2: ${r1Label}). ` +
-        `Clicking "View on Royal" opens Royal Caribbean's 2-room booking flow.`;
-    }
+  if (effectiveRoomMode === "single_room_5p") {
+    noteEl.textContent =
+      `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
+      `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
+  } else if (effectiveRoomMode === "two_rooms") {
+    const split = splitPartyAcrossTwoRooms(state.adults, state.children);
+    const r0Label = `${split.r0a}A${split.r0c > 0 ? ` + ${split.r0c}C` : ""}`;
+    const r1Label = `${split.r1a}A${split.r1c > 0 ? ` + ${split.r1c}C` : ""}`;
+    noteEl.textContent =
+      `Showing 2-Room Online Split Pricing for ${partyText} (Room 1: ${r0Label} • Room 2: ${r1Label}). ` +
+      `Clicking "View on Royal" opens Royal Caribbean's 2-room booking flow.`;
   } else if (totalGuests > 2) {
     noteEl.textContent = `Showing single-room quad/family ${ITEMS_LOWER}s for ${partyText} (capped at 4 guests/room online). Kids Sail Free dates charge $0 base fare for 3rd/4th guests (taxes only).`;
   } else {
@@ -1451,15 +1454,28 @@ function bindEvents() {
     }
   });
 
-  // 5+ Guest Room Mode buttons (2 Rooms Online vs 1 Room 5+ Guest Suite Phone Estimate)
+  // Room Booking Mode buttons (1 Room Online vs 2 Rooms Online vs 1 Suite 5+ Estimate)
   document.querySelectorAll(".room-mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mode = btn.dataset.roomMode;
-      if (mode === "two_rooms" || mode === "single_room_5p") {
-        state.roomMode = IS_STATEROOMS ? "two_rooms" : mode;
-        saveStateToStorage();
-        render();
+      if (mode === "single_room") {
+        state.roomMode = "single_room";
+        if (state.adults + state.children > 4) {
+          state.children = Math.max(0, 4 - state.adults);
+        }
+      } else if (mode === "two_rooms") {
+        state.roomMode = "two_rooms";
+        if (state.adults + state.children < 2) {
+          state.adults = 2;
+        }
+      } else if (mode === "single_room_5p" && !IS_STATEROOMS) {
+        state.roomMode = "single_room_5p";
+        if (state.adults + state.children < 5) {
+          state.children = Math.max(1, 5 - state.adults);
+        }
       }
+      saveStateToStorage();
+      render();
     });
   });
 
@@ -1468,6 +1484,11 @@ function bindEvents() {
     chip.addEventListener("click", () => {
       state.adults = Number(chip.dataset.adults);
       state.children = Number(chip.dataset.children);
+      if (state.adults + state.children <= 4 && state.roomMode === "single_room_5p") {
+        state.roomMode = "single_room";
+      } else if (state.adults + state.children > 4 && state.roomMode === "single_room") {
+        state.roomMode = "two_rooms";
+      }
       saveStateToStorage();
       render();
     });
@@ -1593,7 +1614,7 @@ function bindEvents() {
   document.getElementById("reset-filters-btn").addEventListener("click", () => {
     state.adults = 2;
     state.children = 2;
-    state.roomMode = "two_rooms";
+    state.roomMode = "single_room";
     state.sortBy = "total_asc";
     state.customPorts.clear();
     state.filters = {
