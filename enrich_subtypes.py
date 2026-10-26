@@ -439,8 +439,12 @@ def apply_rooms_to_sailing(s: dict, rooms_4: list[dict], rooms_2: list[dict], no
     s["suite_tier"] = lead_tier
     s["available_tiers"] = avail_tiers
     s["tiers"] = tiers_dict
-    s["pricing_2a"] = lead_obj["pricing_2a"]
-    s["pricing_quad"] = lead_obj["pricing_quad"]
+    s["pricing_2a"] = lead_obj["pricing_2a"] or next(
+        (tiers_dict[t]["pricing_2a"] for t in avail_tiers if tiers_dict[t].get("pricing_2a")), None
+    )
+    s["pricing_quad"] = lead_obj["pricing_quad"] or next(
+        (tiers_dict[t]["pricing_quad"] for t in avail_tiers if tiers_dict[t].get("pricing_quad")), None
+    )
     s["enriched_at"] = now_iso
 
     ref_main = lead_obj["pricing_quad"] or lead_obj["pricing_2a"]

@@ -734,9 +734,6 @@ function getFilteredSailingsAndItineraries() {
 
   for (const raw of state.rawData.sailings) {
     // First check non-tier filters so we can show accurate counts on each tier checkbox
-    if (state.adults + state.children > 2 && !raw.pricing_quad) {
-      continue;
-    }
     if (shipClass !== "all" && (raw.ship_class || "").toLowerCase() !== shipClass.toLowerCase()) {
       continue;
     }

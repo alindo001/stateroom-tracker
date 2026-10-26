@@ -23,7 +23,6 @@ concurrency:
 jobs:
   prepare-catalogs:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,11 +32,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Fetch fresh baseline Staterooms & Suites catalogs
+      - name: Fetch fresh baseline Staterooms & Suites catalogs via bulk search
         run: |
           pip install curl_cffi
           python fetch_staterooms.py
-          python tracker.py -p FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX --output data/suites.json
 
       - name: Upload baseline catalogs
         uses: actions/upload-artifact@v4

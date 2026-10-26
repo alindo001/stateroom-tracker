@@ -7,6 +7,8 @@ from tracker import (
     BASE_HEADERS,
     CODE_TO_SHIP_CLASS,
     extract_per_person_breakdown,
+    is_suite_category,
+    build_suite_tiers,
 )
 
 BULK_SEARCH_QUERY = """
@@ -123,21 +125,27 @@ def fetch_bulk_cruises(session: requests.Session, filters: str, max_count: int =
     return all_cruises
 
 
-def build_staterooms_dataset(ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX", output_json: str = "data/staterooms.json"):
+def build_staterooms_dataset(
+    ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,LAX",
+    output_json: str = "data/staterooms.json",
+    output_suites_json: str = "data/suites.json",
+):
     session = requests.Session(impersonate="chrome")
-    print(f"Fetching 2-Adult and 4-Guest (2A+2C) stateroom pricing across ports: {ports}...")
+    print(f"Fetching 2-Adult and 4-Guest (2A+2C) stateroom & suite pricing across ports: {ports}...")
 
     cruises_4 = fetch_bulk_cruises(session, f"departurePort:{ports}|adults:2|children:2", max_count=500)
     cruises_2 = fetch_bulk_cruises(session, f"departurePort:{ports}|adults:2|children:0", max_count=500)
     print(f"Fetched {len(cruises_4)} quad itineraries and {len(cruises_2)} double itineraries.")
 
-    # Index 2-adult and 4-guest stateroom prices by (itin_code, sail_date, cat_key)
+    # Index 2-adult and 4-guest stateroom & suite prices by (itin_code, sail_date, cat_key)
     lookup_2 = {}
     lookup_4 = {}
+    suite_lookup_2 = {}
+    suite_lookup_4 = {}
     sailing_meta = {}
     itin_meta = {}
 
-    def process_cruise_list(cruise_list: list[dict], guests: int, target_lookup: dict):
+    def process_cruise_list(cruise_list: list[dict], guests: int, target_lookup: dict, target_suite_lookup: dict):
         for c in cruise_list:
             itin = ((c.get("masterSailing") or {}).get("itinerary")) or {}
             itin_code = itin.get("code") or c.get("id")
@@ -178,14 +186,11 @@ def build_staterooms_dataset(ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,L
                     if not isinstance(p, dict):
                         continue
                     sc = p.get("stateroomClass") or {}
-                    cat_key = classify_regular_stateroom(sc)
-                    if not cat_key:
-                        continue
                     price_obj = p.get("price")
                     if not isinstance(price_obj, dict) or price_obj.get("value") is None:
                         continue
                     base_pp, taxes_pp, total_pp, discount_pp = extract_per_person_breakdown(price_obj, s)
-                    target_lookup[(itin_code, sail_date, cat_key)] = {
+                    price_entry = {
                         "guests": guests,
                         "base_pp": round(base_pp, 2),
                         "total_pp": round(total_pp, 2),
@@ -194,9 +199,14 @@ def build_staterooms_dataset(ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,L
                         "cabin_total": round(total_pp * guests, 2),
                         "cabin_discount": round(discount_pp * guests, 2),
                     }
+                    cat_key = classify_regular_stateroom(sc)
+                    if cat_key:
+                        target_lookup[(itin_code, sail_date, cat_key)] = price_entry
+                    elif is_suite_category(sc):
+                        target_suite_lookup[(itin_code, sail_date)] = price_entry
 
-    process_cruise_list(cruises_4, 4, lookup_4)
-    process_cruise_list(cruises_2, 2, lookup_2)
+    process_cruise_list(cruises_4, 4, lookup_4, suite_lookup_4)
+    process_cruise_list(cruises_2, 2, lookup_2, suite_lookup_2)
 
     all_sailing_keys = sorted(sailing_meta.keys())
     deals = []
@@ -373,6 +383,149 @@ def build_staterooms_dataset(ports: str = "FLL,MIA,PCN,TPA,GAL,BYE,SJU,MSY,BWI,L
         json.dump(payload, f, indent=2)
 
     print(f"Saved {len(deals)} stateroom sailings across {len(itineraries_list)} itineraries to {output_json}!")
+
+    # Also build complete baseline suites catalog from the exact same bulk responses (zero rate-limit loss)
+    if output_suites_json:
+        suite_deals = []
+        suite_itins_map = {}
+
+        for itin_code, sail_date in all_sailing_keys:
+            meta = itin_meta.get(itin_code)
+            if not meta:
+                continue
+            ref_2a = suite_lookup_2.get((itin_code, sail_date))
+            ref_quad = suite_lookup_4.get((itin_code, sail_date))
+            if not ref_2a and not ref_quad:
+                continue
+            ref_main = ref_quad or ref_2a
+            nights = meta["nights"]
+            b_link = sailing_meta.get((itin_code, sail_date)) or ""
+            pkg_code = itin_code
+            if "packageCode=" in b_link:
+                pkg_code = b_link.split("packageCode=")[1].split("&")[0]
+
+            lead_tier, available_tiers, tiers_dict = build_suite_tiers(
+                meta["ship_class"], nights, ref_2a, ref_quad, ship_code=meta["ship_code"]
+            )
+            cabin_base = ref_main["cabin_base"]
+            cabin_taxes = ref_main["cabin_taxes"]
+            cabin_total = ref_main["cabin_total"]
+            cabin_discount = ref_main["cabin_discount"]
+            base_pp = ref_main["base_pp"]
+            total_pp = ref_main["total_pp"]
+            price_per_night = round(cabin_total / nights, 2) if nights > 0 else cabin_total
+
+            is_ksf_promo = False
+            is_holiday_rate = False
+            extra_guest_fare_pp = 0.0
+            if ref_2a and ref_quad:
+                extra_base_diff = max(0.0, round(ref_quad["cabin_base"] - ref_2a["cabin_base"], 2))
+                extra_guest_fare_pp = round(extra_base_diff / 2.0, 2)
+                if extra_base_diff <= 1.0:
+                    is_ksf_promo = True
+                else:
+                    is_holiday_rate = True
+            elif cabin_discount > 0:
+                is_ksf_promo = True
+
+            if is_ksf_promo:
+                rate_tag = f"PROMO: Kids/3rd&4th Free (-${cabin_discount:.0f} off)"
+            elif is_holiday_rate:
+                rate_tag = f"HOLIDAY/BLACKOUT: 3rd/4th +${extra_guest_fare_pp:.2f}/ea (-${cabin_discount:.0f} off)"
+            else:
+                rate_tag = "STANDARD"
+
+            s_record = {
+                "date": sail_date,
+                "itinerary_code": itin_code,
+                "package_code": pkg_code,
+                "booking_link": b_link,
+                "itinerary_name": meta["itinerary_name"],
+                "ship": meta["ship"],
+                "ship_code": meta["ship_code"],
+                "ship_class": meta["ship_class"],
+                "nights": nights,
+                "port": meta["port"],
+                "port_code": meta["port_code"],
+                "category": "Suite",
+                "suite_tier": lead_tier,
+                "available_tiers": available_tiers,
+                "tiers": tiers_dict,
+                "base_pp": base_pp,
+                "total_pp": total_pp,
+                "cabin_base": cabin_base,
+                "cabin_taxes": cabin_taxes,
+                "cabin_total": cabin_total,
+                "cabin_discount": cabin_discount,
+                "price_per_night": price_per_night,
+                "is_ksf_promo": is_ksf_promo,
+                "is_holiday_rate": is_holiday_rate,
+                "extra_guest_fare_pp": extra_guest_fare_pp,
+                "rate_tag": rate_tag,
+                "pricing_2a": ref_2a,
+                "pricing_quad": ref_quad,
+            }
+            suite_deals.append(s_record)
+
+            if itin_code not in suite_itins_map:
+                suite_itins_map[itin_code] = {
+                    "itinerary_code": itin_code,
+                    "itinerary_name": meta["itinerary_name"],
+                    "ship": meta["ship"],
+                    "ship_code": meta["ship_code"],
+                    "ship_class": meta["ship_class"],
+                    "nights": nights,
+                    "port": meta["port"],
+                    "port_code": meta["port_code"],
+                    "sailing_count": 0,
+                    "promo_count": 0,
+                    "lowest_cabin_total": cabin_total,
+                    "lowest_total_pp": total_pp,
+                    "lowest_sail_date": sail_date,
+                    "sail_dates": [],
+                }
+            s_itin = suite_itins_map[itin_code]
+            s_itin["sailing_count"] += 1
+            if is_ksf_promo:
+                s_itin["promo_count"] += 1
+            s_itin["sail_dates"].append(sail_date)
+            if cabin_total < s_itin["lowest_cabin_total"]:
+                s_itin["lowest_cabin_total"] = cabin_total
+                s_itin["lowest_total_pp"] = total_pp
+                s_itin["lowest_sail_date"] = sail_date
+
+        suite_deals.sort(key=lambda x: x["cabin_total"])
+        suite_itins_list = list(suite_itins_map.values())
+        for it in suite_itins_list:
+            it["sail_dates"].sort()
+        suite_itins_list.sort(key=lambda x: x["lowest_cabin_total"])
+
+        if suite_deals:
+            os.makedirs(os.path.dirname(output_suites_json), exist_ok=True)
+            suites_payload = {
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "query": {
+                    "adults": 2,
+                    "children": 2,
+                    "total_guests": 4,
+                    "ports": ports,
+                    "pricing_filter": "all",
+                    "ship_class": None,
+                    "ships": None,
+                },
+                "summary": {
+                    "scanned_itineraries": len(itin_meta),
+                    "itineraries_with_suites": len(suite_itins_list),
+                    "total_suite_sailings": len(suite_deals),
+                    "promo_sailings": sum(1 for d in suite_deals if d["is_ksf_promo"]),
+                    "holiday_sailings": sum(1 for d in suite_deals if d["is_holiday_rate"]),
+                },
+                "itineraries": suite_itins_list,
+                "sailings": suite_deals,
+            }
+            with open(output_suites_json, "w", encoding="utf-8") as f:
+                json.dump(suites_payload, f, indent=2)
+            print(f"Saved {len(suite_deals)} suite sailings across {len(suite_itins_list)} itineraries to {output_suites_json}!")
 
 
 if __name__ == "__main__":
