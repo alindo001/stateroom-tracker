@@ -171,6 +171,18 @@ jobs:
             --suites-json ncl_shards/ncl-suites-shard-${{ matrix.shard }}.json \
             --staterooms-json ncl_shards/ncl-staterooms-shard-${{ matrix.shard }}.json
 
+      - name: Enrich NCL exact Haven, Suite & Stateroom categories for shard ${{ matrix.shard }}
+        continue-on-error: true
+        run: |
+          python fetch_ncl.py \
+            --skip-baseline \
+            --enrich-subtypes \
+            --workers 2 \
+            --rps 1.2 \
+            --batch-size 3 \
+            --suites-json ncl_shards/ncl-suites-shard-${{ matrix.shard }}.json \
+            --staterooms-json ncl_shards/ncl-staterooms-shard-${{ matrix.shard }}.json
+
       - name: Upload NCL catalog shard ${{ matrix.shard }}
         uses: actions/upload-artifact@v4
         if: always()

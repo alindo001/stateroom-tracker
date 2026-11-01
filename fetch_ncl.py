@@ -1334,14 +1334,14 @@ def apply_subtypes_to_sailing(sailing: dict, stps_2: list[dict], stps_4: list[di
         if best_2a:
             t_obj["room_name_2a"] = best_2a["display_name"]
             t_obj["pricing_2a"] = best_2a["pricing_2a"]
-            others_2a = [r for r in r2_candidates if r["code"] != best_2a["code"]][:5]
+            others_2a = [r for r in r2_candidates if r["code"] != best_2a["code"]][:10]
             t_obj["other_rooms_2a"] = " • ".join(
                 f"{r['display_name']}: ${round(r['pricing_2a']['cabin_total']):,}" for r in others_2a
             )
         if best_4:
             t_obj["room_name_quad"] = best_4["display_name"]
             t_obj["pricing_quad"] = best_4["pricing_quad"]
-            others_4 = [r for r in r4_candidates if r["code"] != best_4["code"]][:5]
+            others_4 = [r for r in r4_candidates if r["code"] != best_4["code"]][:10]
             t_obj["other_rooms_quad"] = " • ".join(
                 f"{r['display_name']}: ${round(r['pricing_quad']['cabin_total']):,}" for r in others_4
             )
