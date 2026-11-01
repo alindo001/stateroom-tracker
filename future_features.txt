@@ -17,16 +17,19 @@ Architecture Plan:
     never affects the others.
 
 Priority Order by Technical Compatibility:
-  a) Celebrity Cruises (Phase 1 - Easiest):
+  a) Norwegian Cruise Line (NCL) — [COMPLETED]:
+     - Live on `ncl-suites.html` and `ncl-staterooms.html` via `fetch_ncl.py`.
+     - Dedicated tracking for "The Haven" luxury enclave vs. NCL Suites,
+       Club Balcony Suites, Balcony, Oceanview, Inside/Studio, and Sail Away
+       Guarantee rates across 14 US, Caribbean & Hawaii departure ports.
+  b) Celebrity Cruises (Next Easiest):
      - Part of Royal Caribbean Group (RCL); shares the same GraphQL +
        `/room-selection/type-and-subtype` backend architecture.
      - Suite Tiers: "The Retreat" (Sky Suite, Aqua Sky Suite, Celebrity Suite,
        Royal Suite, Penthouse Suite, Iconic Suite, Edge Villa).
-  b) MSC Cruises:
+  c) MSC Cruises:
      - Strong suite-tier parallel with "MSC Yacht Club" (ship-within-a-ship
        luxury complex) vs. Aurea Suites.
-  c) Norwegian Cruise Line (NCL):
-     - Track "The Haven" luxury suite enclave vs. standard Club Balcony / Suites.
   d) Carnival / Princess / Holland America:
      - REST/GraphQL search endpoints via `curl_cffi` across parallel runner IPs.
   e) Disney Cruise Line (DCL):
@@ -46,10 +49,145 @@ Ideas:
   - Display a sparkline or "Was $X -> Now $Y" badge on sailing rows.
 
 
-3. SUB-CATEGORY ROOM ENRICHMENT FOR STANDARD STATEROOMS (`staterooms.html`)
+3. SUB-CATEGORY ROOM ENRICHMENT FOR STANDARD STATEROOMS (`staterooms.html`) — [COMPLETED]
+-------------------------------------------------------------------------------
+Status:
+  Completed via dual-catalog 6-shard enrichment in `enrich_subtypes.py` and
+  `fetch_ncl.py` (separating Ocean View Balcony, Central Park / Boardwalk
+  Neighborhood Balcony, Aft-Facing / Family Balcony, Spacious / Studio Inside,
+  and Unassigned Guarantee subtypes).
+
+
+4. CONJOINED / CONNECTING ROOMS — TECHNICAL INVESTIGATION & IMPLEMENTATION REPORT
 -------------------------------------------------------------------------------
 Goal:
-  Bring the same exact subtype room breakdown used on `suites.html` to
-  `staterooms.html` (e.g., separating Ocean View Balcony vs. Central Park
-  View Balcony vs. Boardwalk View Balcony vs. Guarantee Balcony).
+  Allow families booking 2 rooms (`2 Rooms Online (Split Party)`) to filter for,
+  accurately price, and deep-link directly into physically conjoined / connecting
+  staterooms (two adjacent cabins with an interior connecting door between them).
 
+A. How Royal Caribbean Handles Connecting Rooms (Verified Against Live Funnel)
+------------------------------------------------------------------------------
+  1. Complete Per-Room URL Parameter Schema (`/room-selection/type-and-subtype`):
+     Royal Caribbean's Next.js booking funnel (`3678-3fca6b30e6e838af.js`)
+     serializes per-room state using `r{roomIndex}{singleCharKey}` query params:
+       - `a` : `adultCount` (integer 1-4)
+       - `c` : `childCount` (integer 0-3)
+       - `b` : `accessible` (`y` / `n`)
+       - `d` : `stateroomTypeCode` (`INTERIOR`, `OUTSIDE`, `BALCONY`, `DELUXE`)
+       - `e` : `stateroomSubtypeCode` (e.g., `CI`, `CB`, `D`, `J`, `JS`, `TL`)
+       - `f` : `categoryCode` (e.g., `1D`, `4D`, `CB`, `CI`)
+       - `g` : `fareCode`
+       - `h` : `refundability` (`r` = Refundable, `n` = Non-refundable deposit)
+       - `j` : `roomNumber`
+       - `q` : `military` (`y` / `n`)
+       - `r` : `police` (`y` / `n`)
+       - `s` : `fireFighter` (`y` / `n`)
+       - `t` : `senior` (`y` / `n`)
+       - `C` : `isRoomTypeSelected` (`y` / `n`)
+       - `F` : `connectedCabins` (paired cabin number string once selected)
+       - `G` : `isConnectingRoomsSelected` (`y` / `n`)  <-- CONNECTING TOGGLE!
+       - `L` : `isGuarantee` (`y` / `n`)
+
+     Passing `&r0G=y&r1G=y` in a 2-room deep-link URL pre-enables Royal's
+     "Connecting rooms" preference inside the booking funnel. (If connecting
+     pairs are sold out, Royal displays a fallback notice suggesting nearby
+     adjacent rooms.)
+
+  2. Live RSC `connecting: true | false` Flag on Every Subtype:
+     When querying `/room-selection/type-and-subtype` with `RSC: 1` for 2 rooms
+     (`r0...` & `r1...`), every object inside `stateroomSubtypes` includes a
+     live boolean field:
+       `"connecting": true | false`
+
+     CRITICAL FINDING — `connecting` Is Dynamic Deck-Inventory Based, Not Static:
+     - Dedicated connecting subtype codes exist on newer ships:
+         * `CI` : Connecting Interior
+         * `CO` : Connecting Ocean View
+         * `CB` / `CD` : Connecting Ocean View Balcony
+         * `CJ` : Connecting Junior Suite
+     - However, regular subtypes (`D` Ocean View Balcony, `J` Central Park View
+       Balcony, `N` Ocean View, `TL` Star Loft Suite) ALSO have physical
+       connecting pairs on the deck plan!
+     - Royal sets `"connecting": true` ONLY if at least one physical connected
+       pair of that subtype is currently open for BOTH Room 1's guest count AND
+       Room 2's guest count.
+     - Verified Production Proof (`Harmony of the Seas`, `2028-02-24`):
+         * `2 + 2` Guest Split (`r0a=1&r0c=1`, `r1a=1&r1c=1`):
+             - `INTERIOR`: `CI` ($981.34) has `connecting: true`, whereas cheaper
+               `ZI` Guarantee ($904.34) and `U`/`CR` ($962.34) are `false`.
+             - `OUTSIDE`: `N` ($1,043.34) has `connecting: true`.
+             - `BALCONY`: `J` Central Park Balcony ($1,211.34) and `D` Ocean
+               View Balcony ($1,338.50) have `connecting: true`, while `CB`
+               ($1,373.90) is `connecting: false` (all `CB+CB` pairs sold out!)
+               and `XN`/`XB`/`I` are `connecting: false`.
+             - `DELUXE`: `TL` Star Loft Suite ($9,315.34) has `connecting: true`.
+         * `3 + 2` Guest Split (`r0a=1&r0c=2`, `r1a=1&r1c=1`) on the SAME sailing:
+             - EVERY `INTERIOR`, `OUTSIDE`, and `BALCONY` subtype flips to
+               `connecting: false`! Only `TL` ($9,411.01) remains `true`.
+
+  3. Why 5+ Guest Splits (`3+2`, `4+1`, `3+3`, `4+2`) Lose Most Connecting Pairs:
+     - On Royal Caribbean deck plans (especially Oasis, Icon, and Quantum class),
+       the vast majority of cabins with an interior connecting door (`CI`, `CB`,
+       and connecting `2D`/`2J`/`2N` pairs) are **double-occupancy (2-berth)**
+       cabins because the interior connecting door takes the wall space where a
+       fold-out sofa bed or Pullman berth is normally mounted.
+     - Putting 3 or 4 guests into Room 1 forces Royal's homogeneous subtype
+       search to look for two connecting 3/4-berth quad cabins (or a 4-berth
+       cabin connected to a 2-berth cabin of the exact same subtype code), which
+       is rare on modern deck plans.
+     - Exceptions that DO support 5+ guests in connecting rooms:
+         a) Cross-category / Asymmetric Connecting Pairs (e.g., Ultimate Family
+            Townhouse / Crown Loft / Junior Suite connecting to a standard
+            Balcony, or a `4D` quad balcony physically connected to a `2D`
+            double balcony — requires selecting different subtypes per room or
+            choosing on the deck map).
+         b) Older Voyager / Freedom / Radiance class ships that have select
+            3/4-berth connecting Ocean View / Promenade / Balcony pairs.
+
+  4. Guarantee Rates Never Support Connecting Rooms:
+     - All Guarantee subtypes (`ZI`, `ZQ`, `YO`, `YQ`, `XN`, `NQ`, `XB`, `XQ`,
+       `WS`) ALWAYS return `"connecting": false` because cabin assignment happens
+       close to sailing with no adjacency guarantee.
+
+B. How Norwegian Cruise Line (NCL) Handles Connecting Rooms
+------------------------------------------------------------------------------
+  1. Verified against `ncl-vacation-builder-app/iife.js` and `/api/vacation-builder`:
+     - NCL's search & category pricing APIs (`/api/vacations/sailings/{code}` and
+       `/api/vacation-builder/v2/stateroom-types-availability`) do NOT separate
+       "Connecting Balcony" or "Connecting Inside" into distinct priced subtype
+       codes (unlike Royal's `CB`/`CI`).
+     - Instead, NCL prices connecting cabins identically to standard assigned
+       cabins in the same category (`BA`, `BB`, `MA`, `IB`, `OA`, `H4`, `HE`) and
+       exposes connecting-door indicators (`connectedLegendLabel` on the SVG deck
+       plan) during Step 2 (`cabin/availability` & `ship/deck-plan-svgs`) when
+       picking specific cabin numbers on the deck map.
+     - Note: NCL Sail Away Guarantee categories (`IX`, `OX`, `BX`, `MX`) cannot
+       be linked as connecting cabins because NCL assigns the room number later.
+     - NCL's Vacation Builder supports multi-room URL deep links via repeated
+       query parameters:
+       `https://www.ncl.com/vacation-builder?itineraryCode={CODE}&packageId={PKG}&guests=2&guests=2&stateroomTypeCode=BALCONY&stateroomTypeCode=BALCONY`
+
+C. Recommended Implementation Blueprint (When Ready to Build)
+------------------------------------------------------------------------------
+  1. Scraper Enrichment (`enrich_subtypes.py`):
+     - During the 2-guest (`2A`) and 4-guest (`2A+2C`) RSC fetches, capture
+       `connecting` (or perform a 2-room `r0a=1&r0c=1&r1a=1&r1c=1` & `r0a=1&r0c=2&r1a=1&r1c=1`
+       check / inspect subtype codes `CI`, `CO`, `CB`, `CD`, `CJ` and `"connecting": true`)
+       and store `"connecting_2a": true/false` and `"connecting_quad": true/false`
+       on each subtype entry in `tierObj.rooms`.
+  2. Frontend Toggle (`app.js` + HTML):
+     - Inside `2 Rooms Online (Split Party)`, add an optional checkbox:
+       `[ ] Require Connecting / Conjoined Rooms (Interior Door)`
+     - When checked on Royal Caribbean:
+         * Exclude `Guarantee` subtypes automatically.
+         * Filter `r1Options` and `r2Options` to subtypes with live connecting
+           availability for that split (`2+2` vs `3+2` vs `4+2`), or display a
+           clear warning badge (`"No homogeneous 3+2 connecting pair online —
+           check deck map or call Royal for 4-berth + 2-berth connecting pair"`)
+           when a 5+ guest party has no online quad+double connecting match.
+         * Append `&r0G=y&r1G=y` (and `&r0e={subtypeCode}&r1e={subtypeCode}`)
+           to `buildRoyalSuiteUrl()` so Royal opens with Connecting Rooms active.
+     - When checked on Norwegian Cruise Line:
+         * Exclude `Sail Away (Guarantee)` rates automatically (since only
+           assigned cabins allow picking connecting room numbers on NCL's deck
+           plan) and deep-link to NCL's 2-room Vacation Builder flow.

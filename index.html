@@ -5,38 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta name="googlebot" content="noindex, nofollow" />
-  <title>Stateroom Tracker — Royal Caribbean Suites &amp; Staterooms</title>
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <title>Cruise Stateroom Tracker — Royal Caribbean &amp; Norwegian Cruise Line</title>
+  <link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body class="landing-body">
   <header class="site-header">
     <div class="container header-inner">
       <div class="brand">
         <div>
-          <h1>Royal Caribbean Stateroom Tracker</h1>
-          <p class="subtitle">Compare live all-in pricing, Kids Sail Free promos &amp; party sizes across 10 US &amp; Caribbean departure ports</p>
+          <h1>Cruise Stateroom &amp; Suite Tracker</h1>
+          <p class="subtitle">Compare live all-in pricing, Kids Sail Free promos &amp; multi-room splits across Royal Caribbean &amp; Norwegian Cruise Line</p>
         </div>
       </div>
-      <nav class="top-nav" aria-label="Tracker Mode Navigation">
-        <a href="index.html" class="nav-pill active">Home</a>
-        <a href="suites.html" class="nav-pill">Suites</a>
-        <a href="staterooms.html" class="nav-pill">Staterooms</a>
-      </nav>
+      <div class="header-nav-group">
+        <div class="cruise-line-tabs" role="tablist" aria-label="Cruise Line Switcher">
+          <button type="button" class="line-tab active" data-line-tab="royal" id="header-tab-royal" role="tab" aria-selected="true">Royal Caribbean</button>
+          <button type="button" class="line-tab" data-line-tab="ncl" id="header-tab-ncl" role="tab" aria-selected="false">Norwegian (NCL)</button>
+        </div>
+        <nav class="top-nav" aria-label="Tracker Mode Navigation">
+          <a href="index.html" class="nav-pill active" id="landing-nav-home">Home</a>
+          <a href="suites.html" class="nav-pill" id="landing-nav-suites">Suites</a>
+          <a href="staterooms.html" class="nav-pill" id="landing-nav-staterooms">Staterooms</a>
+        </nav>
+      </div>
     </div>
   </header>
 
   <main class="container landing-main">
     <section class="landing-hero">
-      <span class="landing-eyebrow">CHOOSE YOUR STATEROOM EXPERIENCE</span>
-      <h2>Select Which Royal Caribbean Rooms to Explore</h2>
-      <p>
-        Suites and regular staterooms are tracked separately so you can compare Royal Suite Class tiers
-        (<strong>Sea</strong>, <strong>Sky</strong> &amp; <strong>Star Class</strong>) or browse everyday
-        <strong>Interior</strong>, <strong>Ocean View</strong> &amp; <strong>Balcony</strong> staterooms without clutter.
+      <span class="landing-eyebrow">CHOOSE YOUR CRUISE LINE &amp; STATEROOM EXPERIENCE</span>
+      <h2 id="landing-hero-title">Select Which Cruise Rooms to Explore</h2>
+      <p id="landing-hero-desc">
+        Switch between <strong>Royal Caribbean</strong> and <strong>Norwegian Cruise Line (NCL)</strong> below.
+        Suites (including <strong>Royal Suite Class</strong> &amp; <strong>The Haven by Norwegian</strong>) and regular staterooms are tracked separately for fast, clutter-free price comparisons.
       </p>
+
+      <div class="landing-line-switcher" role="tablist" aria-label="Select Cruise Line">
+        <button type="button" class="landing-line-btn active" data-line-tab="royal" id="hero-tab-royal" role="tab" aria-selected="true">
+          <span class="line-btn-title">Royal Caribbean</span>
+          <span class="line-btn-sub">Sea, Sky &amp; Star Suites &bull; Interior, Ocean View &amp; Balcony</span>
+        </button>
+        <button type="button" class="landing-line-btn" data-line-tab="ncl" id="hero-tab-ncl" role="tab" aria-selected="false">
+          <span class="line-btn-title">Norwegian Cruise Line</span>
+          <span class="line-btn-sub">The Haven, Suites &amp; Club Balcony &bull; Inside, Studio &amp; Balcony</span>
+        </button>
+      </div>
     </section>
 
-    <section class="landing-grid" aria-label="Room Category Trackers">
+    <!-- TAB PANEL 1: ROYAL CARIBBEAN -->
+    <section class="landing-grid" id="panel-royal" aria-label="Royal Caribbean Room Category Trackers">
       <!-- Option 1: Royal Caribbean Suites -->
       <a href="suites.html" class="landing-card landing-card-suites">
         <div class="landing-card-top">
@@ -62,7 +79,7 @@
             <li>&bull; Filter by Sea, Sky, Star, Standard or Suite Guarantee (WS)</li>
             <li>&bull; Verified room-type pricing (Junior Suite vs Sky Junior Suite vs Grand Suite)</li>
             <li>&bull; Coastal Kitchen, Suite Lounge, VOOM Wi-Fi &amp; Royal Genie perk badges</li>
-            <li>&bull; Direct deep-links to Royal Caribbean's Suite Selection for your exact party size</li>
+            <li>&bull; Direct deep-links to Royal Caribbean's Suite Selection for 1 or 2 rooms</li>
           </ul>
         </div>
 
@@ -109,7 +126,7 @@
 
           <ul class="landing-feature-list">
             <li>&bull; Compare Interior, Ocean View &amp; Ocean/Neighborhood Balcony rooms side-by-side</li>
-            <li>&bull; Instant party size calculator (2 Adults, 2A + 1 Kid, 2A + 2 Kids, 3A, 4A)</li>
+            <li>&bull; Dynamic 1-Room vs 2-Room optimal split calculator for families of 2&ndash;8</li>
             <li>&bull; Spot Kids Sail Free promo dates vs Holiday/Blackout dates at a glance</li>
             <li>&bull; Direct deep-links to Royal Caribbean's Room Selection for the winning category</li>
           </ul>
@@ -137,43 +154,204 @@
         </div>
       </a>
     </section>
+
+    <!-- TAB PANEL 2: NORWEGIAN CRUISE LINE (NCL) -->
+    <section class="landing-grid hidden" id="panel-ncl" aria-label="Norwegian Cruise Line Room Category Trackers">
+      <!-- Option 1: NCL Haven & Suites -->
+      <a href="ncl-suites.html" class="landing-card landing-card-ncl-suites">
+        <div class="landing-card-top">
+          <div class="landing-card-header">
+            <div>
+              <span class="landing-card-tag tag-haven">The Haven by Norwegian &amp; Suites</span>
+              <h3>Norwegian Haven &amp; Suites</h3>
+            </div>
+          </div>
+          <p class="landing-card-desc">
+            Track <strong>The Haven</strong> luxury ship-within-a-ship complex, Penthouse Suites, and Club Balcony Suites across Prima Plus, Prima, Breakaway Plus &amp; Jewel class ships.
+          </p>
+
+          <div class="landing-tier-pills">
+            <span class="badge badge-tier-haven">&#9733; The Haven</span>
+            <span class="badge badge-tier-sky">NCL Suites (Penthouse)</span>
+            <span class="badge badge-tier-sea">Club Balcony Suite</span>
+            <span class="badge badge-tier-guarantee">Sail Away Suite (Guarantee)</span>
+          </div>
+
+          <ul class="landing-feature-list">
+            <li>&bull; 1-click <strong>&#9733; Haven Only</strong> filter to isolate The Haven suites &amp; 2-BR Villas</li>
+            <li>&bull; 24-Hr Butler, Private Haven Courtyard, Pool, Restaurant &amp; Lounge tracking</li>
+            <li>&bull; Compare 1-Room vs 2-Room splits &amp; 5+ occupancy 2-Bedroom Haven Family Villas</li>
+            <li>&bull; Direct deep-links to NCL's Vacation Builder for your exact party size</li>
+          </ul>
+        </div>
+
+        <div class="landing-card-footer">
+          <div class="landing-stats-row">
+            <div class="landing-stat">
+              <span class="landing-stat-label">Haven Sailings</span>
+              <span id="ncl-suites-stat-haven" class="landing-stat-val">--</span>
+            </div>
+            <div class="landing-stat">
+              <span class="landing-stat-label">Suite Sailings</span>
+              <span id="ncl-suites-stat-sailings" class="landing-stat-val">--</span>
+            </div>
+            <div class="landing-stat">
+              <span class="landing-stat-label">Kids Sail Free</span>
+              <span id="ncl-suites-stat-promos" class="landing-stat-val">--</span>
+            </div>
+          </div>
+          <div class="landing-cta-btn cta-haven">
+            <span>Explore NCL Haven &amp; Suites</span>
+            <span class="cta-arrow">&rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Option 2: NCL Staterooms -->
+      <a href="ncl-staterooms.html" class="landing-card landing-card-staterooms">
+        <div class="landing-card-top">
+          <div class="landing-card-header">
+            <div>
+              <span class="landing-card-tag tag-staterooms">More at Sea &amp; Everyday Cabins</span>
+              <h3>Norwegian Staterooms</h3>
+            </div>
+          </div>
+          <p class="landing-card-desc">
+            Compare all-in fares (including port taxes &amp; fees) for Inside, Solo Studio, Oceanview, and Balcony staterooms across 14 US, Caribbean &amp; Hawaii departure ports.
+          </p>
+
+          <div class="landing-tier-pills">
+            <span class="badge badge-tier-interior">Inside &amp; Solo Studio</span>
+            <span class="badge badge-tier-oceanview">Oceanview Stateroom</span>
+            <span class="badge badge-tier-balcony">Balcony Stateroom</span>
+            <span class="badge badge-tier-guarantee">Sail Away (Guarantee)</span>
+          </div>
+
+          <ul class="landing-feature-list">
+            <li>&bull; Compare Inside, Solo Studio (1-guest lounge access), Oceanview &amp; Balcony cabins</li>
+            <li>&bull; Dynamic 1-Room vs 2-Room optimal split calculator for families of 1&ndash;8</li>
+            <li>&bull; Spot Kids Sail Free (3rd &amp; 4th Guests Free) dates vs Holiday/Blackout dates</li>
+            <li>&bull; Direct deep-links to NCL's Vacation Builder for 1 or 2 rooms</li>
+          </ul>
+        </div>
+
+        <div class="landing-card-footer">
+          <div class="landing-stats-row">
+            <div class="landing-stat">
+              <span class="landing-stat-label">Room Sailings</span>
+              <span id="ncl-rooms-stat-sailings" class="landing-stat-val">--</span>
+            </div>
+            <div class="landing-stat">
+              <span class="landing-stat-label">Itineraries</span>
+              <span id="ncl-rooms-stat-itins" class="landing-stat-val">--</span>
+            </div>
+            <div class="landing-stat">
+              <span class="landing-stat-label">Kids Sail Free</span>
+              <span id="ncl-rooms-stat-promos" class="landing-stat-val">--</span>
+            </div>
+          </div>
+          <div class="landing-cta-btn cta-staterooms">
+            <span>Explore Norwegian Staterooms</span>
+            <span class="cta-arrow">&rarr;</span>
+          </div>
+        </div>
+      </a>
+    </section>
   </main>
 
   <footer class="site-footer">
     <div class="container">
-      <p>Royal Caribbean Stateroom Tracker &bull; Powered by Static JSON &amp; GitHub Pages</p>
+      <p>Cruise Stateroom &amp; Suite Tracker &bull; Royal Caribbean &amp; Norwegian Cruise Line &bull; Powered by Static JSON &amp; GitHub Pages</p>
     </div>
   </footer>
 
   <script>
-    async function loadLandingStats() {
-      try {
-        const [suitesResp, roomsResp] = await Promise.all([
-          fetch("./data/suites.json", { cache: "no-store" }),
-          fetch("./data/staterooms.json", { cache: "no-store" })
-        ]);
-        if (suitesResp.ok) {
-          const suitesData = await suitesResp.json();
-          const sList = suitesData.sailings || [];
-          const iList = suitesData.itineraries || [];
-          const promos = sList.filter((s) => s.is_ksf_promo).length;
-          document.getElementById("suites-stat-sailings").textContent = sList.length.toLocaleString();
-          document.getElementById("suites-stat-itins").textContent = iList.length.toLocaleString();
-          document.getElementById("suites-stat-promos").textContent = `${promos.toLocaleString()} dates`;
-        }
-        if (roomsResp.ok) {
-          const roomsData = await roomsResp.json();
-          const rList = roomsData.sailings || [];
-          const iList = roomsData.itineraries || [];
-          const promos = rList.filter((s) => s.is_ksf_promo).length;
-          document.getElementById("staterooms-stat-sailings").textContent = rList.length.toLocaleString();
-          document.getElementById("staterooms-stat-itins").textContent = iList.length.toLocaleString();
-          document.getElementById("staterooms-stat-promos").textContent = `${promos.toLocaleString()} dates`;
-        }
-      } catch (e) {
-        // Keep default static numbers if fetch fails
+    function setActiveCruiseLine(line) {
+      const isNcl = line === "ncl";
+      document.getElementById("panel-royal").classList.toggle("hidden", isNcl);
+      document.getElementById("panel-ncl").classList.toggle("hidden", !isNcl);
+
+      document.querySelectorAll("[data-line-tab]").forEach((btn) => {
+        const active = btn.dataset.lineTab === (isNcl ? "ncl" : "royal");
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-selected", String(active));
+      });
+
+      const navSuites = document.getElementById("landing-nav-suites");
+      const navRooms = document.getElementById("landing-nav-staterooms");
+      if (navSuites && navRooms) {
+        navSuites.href = isNcl ? "ncl-suites.html" : "suites.html";
+        navSuites.textContent = isNcl ? "Haven & Suites" : "Suites";
+        navRooms.href = isNcl ? "ncl-staterooms.html" : "staterooms.html";
+      }
+
+      if (isNcl) {
+        history.replaceState(null, "", "#ncl");
+      } else if (window.location.hash === "#ncl") {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
       }
     }
+
+    async function loadLandingStats() {
+      const params = new URLSearchParams(window.location.search);
+      if (window.location.hash === "#ncl" || params.get("line") === "ncl") {
+        setActiveCruiseLine("ncl");
+      }
+
+      document.querySelectorAll("[data-line-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => setActiveCruiseLine(btn.dataset.lineTab));
+      });
+
+      const results = await Promise.allSettled([
+        fetch("./data/suites.json", { cache: "no-store" }),
+        fetch("./data/staterooms.json", { cache: "no-store" }),
+        fetch("./data/ncl_suites.json", { cache: "no-store" }),
+        fetch("./data/ncl_staterooms.json", { cache: "no-store" }),
+      ]);
+
+      const [rcSuitesRes, rcRoomsRes, nclSuitesRes, nclRoomsRes] = results;
+
+      if (rcSuitesRes.status === "fulfilled" && rcSuitesRes.value.ok) {
+        const d = await rcSuitesRes.value.json();
+        const sList = d.sailings || [];
+        const iList = d.itineraries || [];
+        const promos = sList.filter((s) => s.is_ksf_promo).length;
+        document.getElementById("suites-stat-sailings").textContent = sList.length.toLocaleString();
+        document.getElementById("suites-stat-itins").textContent = iList.length.toLocaleString();
+        document.getElementById("suites-stat-promos").textContent = `${promos.toLocaleString()} dates`;
+      }
+
+      if (rcRoomsRes.status === "fulfilled" && rcRoomsRes.value.ok) {
+        const d = await rcRoomsRes.value.json();
+        const rList = d.sailings || [];
+        const iList = d.itineraries || [];
+        const promos = rList.filter((s) => s.is_ksf_promo).length;
+        document.getElementById("staterooms-stat-sailings").textContent = rList.length.toLocaleString();
+        document.getElementById("staterooms-stat-itins").textContent = iList.length.toLocaleString();
+        document.getElementById("staterooms-stat-promos").textContent = `${promos.toLocaleString()} dates`;
+      }
+
+      if (nclSuitesRes.status === "fulfilled" && nclSuitesRes.value.ok) {
+        const d = await nclSuitesRes.value.json();
+        const sList = d.sailings || [];
+        const havenCount = sList.filter((s) => (s.available_tiers || []).includes("Haven")).length;
+        const promos = sList.filter((s) => s.is_ksf_promo).length;
+        document.getElementById("ncl-suites-stat-haven").textContent = havenCount.toLocaleString();
+        document.getElementById("ncl-suites-stat-sailings").textContent = sList.length.toLocaleString();
+        document.getElementById("ncl-suites-stat-promos").textContent = `${promos.toLocaleString()} dates`;
+      }
+
+      if (nclRoomsRes.status === "fulfilled" && nclRoomsRes.value.ok) {
+        const d = await nclRoomsRes.value.json();
+        const rList = d.sailings || [];
+        const iList = d.itineraries || [];
+        const promos = rList.filter((s) => s.is_ksf_promo).length;
+        document.getElementById("ncl-rooms-stat-sailings").textContent = rList.length.toLocaleString();
+        document.getElementById("ncl-rooms-stat-itins").textContent = iList.length.toLocaleString();
+        document.getElementById("ncl-rooms-stat-promos").textContent = `${promos.toLocaleString()} dates`;
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", loadLandingStats);
   </script>
 </body>

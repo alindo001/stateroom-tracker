@@ -7,7 +7,7 @@ on:
       - "**.txt"
       - "**.md"
   schedule:
-    # Refresh suite & stateroom prices every 12 hours
+    # Refresh Royal Caribbean & Norwegian (NCL) suite & stateroom prices every 12 hours
     - cron: "0 */12 * * *"
   workflow_dispatch:
 
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Fetch fresh baseline Staterooms & Suites catalogs via bulk search
+      - name: Fetch fresh baseline Royal Caribbean Staterooms & Suites catalogs via bulk search
         run: |
           pip install curl_cffi
           python fetch_staterooms.py
@@ -69,7 +69,7 @@ jobs:
           name: baseline-catalogs
           path: data
 
-      - name: Enrich suite & stateroom shard ${{ matrix.shard }} of 6
+      - name: Enrich Royal Caribbean suite & stateroom shard ${{ matrix.shard }} of 6
         run: |
           pip install curl_cffi
           python enrich_subtypes.py \
@@ -92,8 +92,98 @@ jobs:
             shards/stateroom-shard-${{ matrix.shard }}.json
           retention-days: 1
 
+  prepare-ncl-itineraries:
+    runs-on: ubuntu-latest
+    outputs:
+      should_fetch: ${{ steps.check_ncl.outputs.should_fetch }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check whether NCL full catalog refresh is needed
+        id: check_ncl
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_fetch=true" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(python -c "import json,os; d=json.load(open('data/ncl_suites.json')) if os.path.exists('data/ncl_suites.json') else {}; print(len(d.get('sailings',[])))")
+            echo "Current committed NCL suite sailings: $COUNT"
+            if [ "$COUNT" -lt 1200 ]; then
+              echo "should_fetch=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_fetch=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Discover all NCL US, Caribbean & Hawaii itineraries
+        if: steps.check_ncl.outputs.should_fetch == 'true'
+        run: |
+          pip install curl_cffi
+          python fetch_ncl.py --discover-only --rps 1.5 --save-itineraries ncl_meta/itineraries.json
+
+      - name: Upload NCL discovered itineraries
+        if: steps.check_ncl.outputs.should_fetch == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncl-discovered-itineraries
+          path: ncl_meta/itineraries.json
+          retention-days: 1
+
+  fetch-ncl-shards:
+    needs: prepare-ncl-itineraries
+    if: needs.prepare-ncl-itineraries.outputs.should_fetch == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download NCL discovered itineraries
+        uses: actions/download-artifact@v4
+        with:
+          name: ncl-discovered-itineraries
+          path: ncl_meta
+        continue-on-error: true
+
+      - name: Fetch NCL Haven, Suites & Staterooms shard ${{ matrix.shard }} of 8
+        run: |
+          pip install curl_cffi
+          mkdir -p ncl_shards
+          python fetch_ncl.py \
+            --load-itineraries ncl_meta/itineraries.json \
+            --shard-index ${{ matrix.shard }} \
+            --shard-count 8 \
+            --workers 2 \
+            --rps 1.4 \
+            --suites-json ncl_shards/ncl-suites-shard-${{ matrix.shard }}.json \
+            --staterooms-json ncl_shards/ncl-staterooms-shard-${{ matrix.shard }}.json
+
+      - name: Upload NCL catalog shard ${{ matrix.shard }}
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ncl-catalog-shard-${{ matrix.shard }}
+          path: |
+            ncl_shards/ncl-suites-shard-${{ matrix.shard }}.json
+            ncl_shards/ncl-staterooms-shard-${{ matrix.shard }}.json
+          if-no-files-found: ignore
+          retention-days: 1
+
   merge-and-deploy:
-    needs: [prepare-catalogs, enrich-suite-shards]
+    needs: [prepare-catalogs, enrich-suite-shards, prepare-ncl-itineraries, fetch-ncl-shards]
     if: always() && (needs.prepare-catalogs.result == 'success' || needs.prepare-catalogs.result == 'skipped')
     environment:
       name: github-pages
@@ -104,19 +194,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        if: needs.prepare-catalogs.result == 'success'
+        if: needs.prepare-catalogs.result == 'success' || needs.prepare-ncl-itineraries.outputs.should_fetch == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Download baseline catalogs
+      - name: Download Royal Caribbean baseline catalogs
         if: needs.prepare-catalogs.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: baseline-catalogs
           path: data
 
-      - name: Download all enriched shards
+      - name: Download all enriched Royal Caribbean shards
         if: needs.prepare-catalogs.result == 'success'
         uses: actions/download-artifact@v4
         with:
@@ -124,19 +214,35 @@ jobs:
           path: shards
           merge-multiple: true
 
-      - name: Merge enriched shards into suites.json and staterooms.json
+      - name: Merge enriched Royal Caribbean shards into suites.json and staterooms.json
         if: needs.prepare-catalogs.result == 'success'
         run: |
           python enrich_subtypes.py --json data/suites.json --merge-shards "shards/shard-*.json"
           python enrich_subtypes.py --json data/staterooms.json --merge-shards "shards/stateroom-shard-*.json"
 
+      - name: Download all NCL catalog shards
+        if: needs.prepare-ncl-itineraries.outputs.should_fetch == 'true'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ncl-catalog-shard-*
+          path: ncl_shards
+          merge-multiple: true
+
+      - name: Merge NCL shards into ncl_suites.json and ncl_staterooms.json
+        if: needs.prepare-ncl-itineraries.outputs.should_fetch == 'true'
+        run: |
+          pip install curl_cffi
+          python fetch_ncl.py --merge-baseline-shards "ncl_shards/ncl-suites-shard-*.json" --merge-mode ncl-suites --target-json data/ncl_suites.json
+          python fetch_ncl.py --merge-baseline-shards "ncl_shards/ncl-staterooms-shard-*.json" --merge-mode ncl-staterooms --target-json data/ncl_staterooms.json
+
       - name: Assemble clean static site bundle with cache-busted asset versions
         run: |
           mkdir -p _site/data
-          cp index.html suites.html staterooms.html styles.css app.js robots.txt .nojekyll _site/
+          cp index.html suites.html staterooms.html ncl-suites.html ncl-staterooms.html styles.css app.js robots.txt .nojekyll _site/
           sed -i "s/styles.css?v=[0-9]*/styles.css?v=${{ github.run_number }}/g" _site/*.html
           sed -i "s/app.js?v=[0-9]*/app.js?v=${{ github.run_number }}/g" _site/*.html
-          cp data/suites.json data/staterooms.json _site/data/
+          cp data/suites.json data/staterooms.json data/ncl_suites.json data/ncl_staterooms.json _site/data/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

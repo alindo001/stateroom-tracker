@@ -1,20 +1,41 @@
 const APP_MODE = document.body?.dataset?.mode || "suites";
-const IS_STATEROOMS = APP_MODE === "staterooms";
+const IS_NCL = APP_MODE === "ncl-suites" || APP_MODE === "ncl-staterooms";
+const IS_STATEROOMS = APP_MODE === "staterooms" || APP_MODE === "ncl-staterooms";
+const LINE_NAME = IS_NCL ? "Norwegian Cruise Line" : "Royal Caribbean";
+const LINE_SHORT = IS_NCL ? "NCL" : "Royal";
 
-const ALL_TIERS = IS_STATEROOMS
-  ? ["Interior", "OceanView", "Balcony", "Guarantee"]
-  : ["Sea", "Sky", "Star", "Standard", "Guarantee"];
+const ALL_TIERS =
+  APP_MODE === "ncl-suites"
+    ? ["Haven", "Suite", "ClubBalcony", "Guarantee"]
+    : IS_STATEROOMS
+    ? ["Interior", "OceanView", "Balcony", "Guarantee"]
+    : ["Sea", "Sky", "Star", "Standard", "Guarantee"];
 
-const DEFAULT_TIERS = IS_STATEROOMS
-  ? ["Interior", "OceanView", "Balcony"]
-  : ["Sea", "Sky", "Star", "Standard"];
+const DEFAULT_TIERS =
+  APP_MODE === "ncl-suites"
+    ? ["Haven", "Suite", "ClubBalcony"]
+    : IS_STATEROOMS
+    ? ["Interior", "OceanView", "Balcony"]
+    : ["Sea", "Sky", "Star", "Standard"];
 
-const DEFAULT_PORTS = ["FLL", "MIA", "PCN"];
-const FLORIDA_PORTS = ["FLL", "MIA", "PCN", "TPA"];
-const STORAGE_KEY = IS_STATEROOMS
-  ? "rc_stateroom_tracker_prefs_v1"
-  : "rc_suite_tracker_prefs_v1";
-const DATA_URL = IS_STATEROOMS ? "./data/staterooms.json" : "./data/suites.json";
+const DEFAULT_PORTS = IS_NCL ? ["MIA", "PCN", "JAX"] : ["FLL", "MIA", "PCN"];
+const FLORIDA_PORTS = IS_NCL ? ["MIA", "PCN", "JAX", "TPA"] : ["FLL", "MIA", "PCN", "TPA"];
+const STORAGE_KEY =
+  APP_MODE === "ncl-suites"
+    ? "ncl_suite_tracker_prefs_v1"
+    : APP_MODE === "ncl-staterooms"
+    ? "ncl_stateroom_tracker_prefs_v1"
+    : IS_STATEROOMS
+    ? "rc_stateroom_tracker_prefs_v1"
+    : "rc_suite_tracker_prefs_v1";
+const DATA_URL =
+  APP_MODE === "ncl-suites"
+    ? "./data/ncl_suites.json"
+    : APP_MODE === "ncl-staterooms"
+    ? "./data/ncl_staterooms.json"
+    : IS_STATEROOMS
+    ? "./data/staterooms.json"
+    : "./data/suites.json";
 const ITEM_LABEL = IS_STATEROOMS ? "Stateroom" : "Suite";
 const ITEMS_LABEL = IS_STATEROOMS ? "Staterooms" : "Suites";
 const ITEMS_LOWER = IS_STATEROOMS ? "stateroom" : "suite";
@@ -23,9 +44,13 @@ const KNOWN_PORT_NAMES = {
   FLL: "Fort Lauderdale",
   MIA: "Miami",
   PCN: "Port Canaveral (Orlando)",
+  PCV: "Port Canaveral (Orlando)",
+  JAX: "Jacksonville",
   TPA: "Tampa",
   GAL: "Galveston",
   BYE: "Cape Liberty (New York)",
+  NYC: "New York",
+  PHL: "Philadelphia",
   SJU: "San Juan",
   MSY: "New Orleans",
   BWI: "Baltimore",
@@ -33,6 +58,7 @@ const KNOWN_PORT_NAMES = {
   SEA: "Seattle",
   BOS: "Boston",
   SAN: "San Diego",
+  HNL: "Honolulu (Oahu)",
   BCN: "Barcelona",
   ROM: "Rome (Civitavecchia)",
 };
@@ -168,20 +194,29 @@ function escapeHtml(str) {
 
 function getShipClassBadgeClass(shipClass) {
   const cls = (shipClass || "").toLowerCase();
-  if (cls === "icon") return "badge-class-icon";
-  if (cls === "oasis") return "badge-class-oasis";
+  if (cls === "icon" || cls === "prima plus") return "badge-class-icon";
+  if (cls === "oasis" || cls === "prima" || cls === "breakaway plus") return "badge-class-oasis";
   return "badge-class-default";
 }
 
 function getTierDisplayLabel(tierKey) {
   const map = {
+    Haven: "The Haven",
+    Suite: "NCL Suite",
+    ClubBalcony: "Club Balcony Suite",
     Sea: "Sea Class",
     Sky: "Sky Class",
     Star: "Star Class",
     Standard: "Standard Suite",
-    Guarantee: IS_STATEROOMS ? "Room Guarantee" : "Suite Guarantee",
-    Interior: "Interior",
-    OceanView: "Ocean View",
+    Guarantee: IS_NCL
+      ? IS_STATEROOMS
+        ? "Sail Away Room"
+        : "Sail Away Suite"
+      : IS_STATEROOMS
+      ? "Room Guarantee"
+      : "Suite Guarantee",
+    Interior: IS_NCL ? "Inside / Studio" : "Interior",
+    OceanView: IS_NCL ? "Oceanview" : "Ocean View",
     Balcony: "Balcony",
   };
   return map[tierKey] || tierKey || ITEM_LABEL;
@@ -189,16 +224,28 @@ function getTierDisplayLabel(tierKey) {
 
 function getTierBadgeHtml(tierKey, roomName = "") {
   const icons = {
+    Haven: "★ The Haven",
+    Suite: "NCL Suite",
+    ClubBalcony: "Club Balcony Suite",
     Sea: "Sea Class",
     Sky: "Sky Class",
     Star: "Star Class",
     Standard: "Standard Suite",
-    Guarantee: IS_STATEROOMS ? "We Choose Your Room (Guarantee)" : "Suite Guarantee (WS)",
-    Interior: "Interior",
-    OceanView: "Ocean View",
+    Guarantee: IS_NCL
+      ? IS_STATEROOMS
+        ? "Sail Away Room (Guarantee)"
+        : "Sail Away Suite (Guarantee)"
+      : IS_STATEROOMS
+      ? "We Choose Your Room (Guarantee)"
+      : "Suite Guarantee (WS)",
+    Interior: IS_NCL ? "Inside & Studio" : "Interior",
+    OceanView: IS_NCL ? "Oceanview" : "Ocean View",
     Balcony: "Balcony",
   };
   const clsMap = {
+    Haven: "badge-tier-haven",
+    Suite: "badge-tier-sky",
+    ClubBalcony: "badge-tier-sea",
     Sea: "badge-tier-sea",
     Sky: "badge-tier-sky",
     Star: "badge-tier-star",
@@ -220,16 +267,26 @@ function getRoomOccupancyInfo(roomNameOrCode, shipClass) {
   const str = String(roomNameOrCode || "").trim();
   const codeMatch = str.match(/\(([A-Z0-9]{1,3})\)/);
   const code = (codeMatch ? codeMatch[1] : str).toUpperCase();
+  const strUpper = str.toUpperCase();
   const clsLower = String(shipClass || "").toLowerCase();
 
+  if (["T1", "IT", "OT", "BT", "STUDIO"].includes(code) || strUpper.includes("SOLO STUDIO")) {
+    return { code, maxGuests: 1, pullmanWarning: false };
+  }
   if (code === "VS") {
     return { code, maxGuests: 14, pullmanWarning: false };
   }
-  if (["UL", "TH", "US", "A1", "A2", "GT", "OT"].includes(code)) {
+  if (["UL", "TH", "US", "A1", "A2", "GT", "OT", "H1", "H2", "OS", "S1"].includes(code) || strUpper.includes("3-BEDROOM")) {
     return { code, maxGuests: 8, pullmanWarning: false };
   }
-  if (["RL", "VY", "K", "1K", "R", "1R", "1A"].includes(code)) {
+  if (
+    ["RL", "VY", "K", "1K", "R", "1R", "1A", "H4", "H5", "H6", "SC", "SE", "SG", "SH"].includes(code) ||
+    strUpper.includes("2-BEDROOM")
+  ) {
     return { code, maxGuests: 6, pullmanWarning: false };
+  }
+  if (["HH", "O4", "O5", "FA"].includes(code) || strUpper.includes("FAMILY VILLA") || strUpper.includes("FAMILY OCEANVIEW")) {
+    return { code, maxGuests: 5, pullmanWarning: false };
   }
   if (["JS", "JY", "J1", "CJ"].includes(code) && clsLower !== "icon") {
     return { code, maxGuests: 5, pullmanWarning: true };
@@ -272,6 +329,9 @@ function splitPartyAcrossTwoRooms(adults, children) {
 }
 
 function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp = 0) {
+  if (r.max_guests && guestCount > r.max_guests) {
+    return null;
+  }
   const rp2 = r.pricing_2a;
   const rp4 = r.pricing_quad;
 
@@ -292,7 +352,25 @@ function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp
     };
   }
 
-  if (!rp4) return null;
+  if (!rp4) {
+    // Support 3-guest max occupancy rooms (e.g. NCL Haven Courtyard Penthouses HE/HF/HI where max_guests === 3)
+    if (guestCount === 3 && r.max_guests && r.max_guests >= 3 && rp2) {
+      const taxPp = rp2.cabin_taxes / 2.0;
+      const taxes = Number((taxPp * 3).toFixed(2));
+      const base3 = isKsfPromo ? rp2.cabin_base : Number((rp2.cabin_base + fallbackExtraPp).toFixed(2));
+      const total3 = Number((base3 + taxes).toFixed(2));
+      return {
+        roomName: r.display_name,
+        royalType: r.royal_type,
+        base: base3,
+        taxes,
+        total: total3,
+        pp: Number((total3 / 3).toFixed(2)),
+        discount: rp2.cabin_discount || 0,
+      };
+    }
+    return null;
+  }
   const taxPp = rp4.cabin_taxes / 4.0;
   const taxes = Number((taxPp * guestCount).toFixed(2));
 
@@ -441,6 +519,40 @@ function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE", isTwoRo
   return `https://www.royalcaribbean.com/room-selection/type-and-subtype?${params.toString()}`;
 }
 
+function buildNclBookingUrl(raw, adults, children, nclType = "BALCONY", isTwoRooms = false, customSplit = null, r1NclType = null) {
+  const totalGuests = (Number(adults) || 2) + (Number(children) || 0);
+  const r0Type = nclType || (IS_STATEROOMS ? "BALCONY" : "HAVEN");
+  const r1Type = r1NclType || r0Type;
+  const itinCode = raw.vb_itinerary_code || String(raw.itinerary_code || "").split("-NIC-")[0];
+  const pkgId = raw.package_code || "";
+  const params = new URLSearchParams();
+
+  if (itinCode) params.set("itineraryCode", itinCode);
+  if (pkgId) params.set("packageId", pkgId);
+
+  if (isTwoRooms && totalGuests >= 2) {
+    const split = customSplit || splitPartyAcrossTwoRooms(Number(adults) || 2, Number(children) || 0);
+    params.append("guests", String(split.room1Total));
+    params.append("guests", String(split.room2Total));
+    params.append("stateroomTypeCode", r0Type);
+    params.append("stateroomTypeCode", r1Type);
+  } else {
+    const effectiveMode = getEffectiveRoomMode(totalGuests);
+    const guestParam = effectiveMode === "single_room_5p" ? totalGuests : Math.min(4, Math.max(1, totalGuests));
+    params.set("guests", String(guestParam));
+    params.set("stateroomTypeCode", r0Type);
+  }
+
+  return `https://www.ncl.com/vacation-builder?${params.toString()}`;
+}
+
+function buildBookingUrl(raw, adults, children, roomType, isTwoRooms = false, customSplit = null, r1RoomType = null) {
+  if (IS_NCL || raw.cruise_line === "NCL") {
+    return buildNclBookingUrl(raw, adults, children, roomType, isTwoRooms, customSplit, r1RoomType);
+  }
+  return buildRoyalSuiteUrl(raw, adults, children, roomType, isTwoRooms, customSplit, r1RoomType);
+}
+
 function getRateBadgeHtml(sailing) {
   if (sailing.is_ksf_promo) {
     return `<span class="rate-pill rate-promo">${escapeHtml(sailing.rate_tag)}</span>`;
@@ -563,14 +675,22 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let twoRoomSplitNote = "";
   let isTwoRooms = effectiveRoomMode === "two_rooms";
 
-  // On Staterooms page, if "Guarantee" is checked alongside specific categories (e.g. Balcony only),
-  // filter the Guarantee tier's rooms to match the checked parent categories
-  if (IS_STATEROOMS && tierKey === "Guarantee" && Array.isArray(tierObj?.rooms)) {
-    const parentMap = { Interior: "INTERIOR", OceanView: "OUTSIDE", Balcony: "BALCONY" };
-    const checkedParents = ["Interior", "OceanView", "Balcony"]
+  // Filter Guarantee tier's rooms to match checked parent categories when specific categories are selected
+  const guarParentMap =
+    APP_MODE === "ncl-suites"
+      ? { Haven: "HAVEN", Suite: "SUITE", ClubBalcony: "MINISUITE" }
+      : APP_MODE === "ncl-staterooms"
+      ? { Interior: "INSIDE", OceanView: "OCEANVIEW", Balcony: "BALCONY" }
+      : IS_STATEROOMS
+      ? { Interior: "INTERIOR", OceanView: "OUTSIDE", Balcony: "BALCONY" }
+      : null;
+
+  if (guarParentMap && tierKey === "Guarantee" && Array.isArray(tierObj?.rooms)) {
+    const parentKeys = Object.keys(guarParentMap);
+    const checkedParents = parentKeys
       .filter((t) => state.filters.suiteTiers.has(t))
-      .map((t) => parentMap[t]);
-    if (checkedParents.length > 0 && checkedParents.length < 3) {
+      .map((t) => guarParentMap[t]);
+    if (checkedParents.length > 0 && checkedParents.length < parentKeys.length) {
       const matchingGuar = tierObj.rooms.filter((r) => checkedParents.includes(r.royal_type));
       if (matchingGuar.length === 0) return null;
       const g2a = matchingGuar
@@ -599,7 +719,10 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     customOtherRooms = capRoom.otherRooms;
     if (capRoom.pullmanWarning) {
       occupancyWarning =
-        "Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling Royal Caribbean is required.";
+        `Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling ${LINE_NAME} is required.`;
+    } else if (IS_NCL) {
+      occupancyWarning =
+        `5+ Occupancy Estimate (Sleeps up to ${capRoom.maxGuests}): Estimated for ${totalGuests} guests in 1 ${ITEMS_LOWER} based on 3rd/4th guest rates. Verify exact 5+ occupancy fare in NCL Vacation Builder.`;
     } else {
       occupancyWarning = `Phone Estimate Only (Sleeps up to ${capRoom.maxGuests}): Price is an estimate for ${totalGuests} guests in 1 ${ITEMS_LOWER}. Calling Royal Caribbean is required to book 5+ guests in 1 room.`;
     }
@@ -636,8 +759,10 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     extraGuestFarePp = Math.max(0, Number(((p4.cabin_base - p2.cabin_base) / 2.0).toFixed(2)));
   }
 
-  const isKsfPromo = Boolean(raw.is_ksf_promo);
-  const isHolidayRate = Boolean(raw.is_holiday_rate);
+  const rawKsf = Boolean(raw.is_ksf_promo);
+  const rawHoliday = Boolean(raw.is_holiday_rate);
+  const isKsfPromo = rawKsf && (!p2 || !p4 || extraGuestFarePp <= 10.0);
+  const isHolidayRate = !isKsfPromo && (rawHoliday || extraGuestFarePp > 10.0);
 
   let cabinBase = 0;
   let cabinTaxes = 0;
@@ -645,17 +770,17 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let chosenTwoRoomSplit = null;
   let customRoyalTypeRoom2 = null;
 
-  // Build eligible rooms pool for this tier (preferring Assigned rooms on non-Guarantee stateroom tiers)
+  // Build eligible rooms pool for this tier (preferring Assigned rooms on non-Guarantee tiers)
   let tierRoomsPool = Array.isArray(tierObj?.rooms) ? tierObj.rooms : [];
-  if (IS_STATEROOMS && tierKey === "Guarantee" && tierRoomsPool.length > 0) {
-    const parentMap = { Interior: "INTERIOR", OceanView: "OUTSIDE", Balcony: "BALCONY" };
-    const checkedParents = ["Interior", "OceanView", "Balcony"]
+  if (guarParentMap && tierKey === "Guarantee" && tierRoomsPool.length > 0) {
+    const parentKeys = Object.keys(guarParentMap);
+    const checkedParents = parentKeys
       .filter((t) => state.filters.suiteTiers.has(t))
-      .map((t) => parentMap[t]);
-    if (checkedParents.length > 0 && checkedParents.length < 3) {
+      .map((t) => guarParentMap[t]);
+    if (checkedParents.length > 0 && checkedParents.length < parentKeys.length) {
       tierRoomsPool = tierRoomsPool.filter((r) => checkedParents.includes(r.royal_type));
     }
-  } else if (IS_STATEROOMS && tierKey !== "Guarantee" && tierRoomsPool.length > 0) {
+  } else if ((IS_STATEROOMS || IS_NCL) && tierKey !== "Guarantee" && tierRoomsPool.length > 0) {
     const nonGuar = tierRoomsPool.filter((r) => !r.guarantee);
     if (nonGuar.length > 0) {
       tierRoomsPool = nonGuar;
@@ -840,7 +965,10 @@ function computeTierCandidate(raw, tierKey, adults, children) {
         "";
   const amenities = tierObj?.amenities || "";
   const isLiveExact = Boolean(tierObj?.is_live_exact);
-  const royalType = customRoyalType || tierObj?.royal_type || (IS_STATEROOMS ? "BALCONY" : "DELUXE");
+  const royalType =
+    customRoyalType ||
+    tierObj?.royal_type ||
+    (IS_NCL ? (IS_STATEROOMS ? "BALCONY" : "HAVEN") : IS_STATEROOMS ? "BALCONY" : "DELUXE");
 
   return {
     active_tier: tierKey,
@@ -862,6 +990,8 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     cabin_discount: cabinDiscount,
     price_per_night: pricePerNight,
     extra_guest_fare_pp: extraGuestFarePp,
+    is_ksf_promo: isKsfPromo,
+    is_holiday_rate: isHolidayRate,
     rate_tag: rateTag,
   };
 }
@@ -893,7 +1023,7 @@ function computeSailingForParty(raw, adults, children, selectedTiers) {
 
   candidates.sort((a, b) => a.cabin_total - b.cabin_total);
   const best = candidates[0];
-  const royalUrl = buildRoyalSuiteUrl(
+  const royalUrl = buildBookingUrl(
     raw,
     adults,
     children,
@@ -1117,8 +1247,21 @@ function sortSailings(sailings, sortBy) {
   return list;
 }
 
+function syncHavenOnlyButtonState() {
+  const havenBtn = document.getElementById("haven-only-btn");
+  if (!havenBtn) return;
+  const tiers = state.filters.suiteTiers;
+  const isHavenOnly =
+    tiers.has("Haven") && !tiers.has("Suite") && !tiers.has("ClubBalcony");
+  havenBtn.classList.toggle("active", isHavenOnly);
+  havenBtn.setAttribute("aria-pressed", String(isHavenOnly));
+  havenBtn.innerHTML = isHavenOnly ? "&#9733; Haven Only (On)" : "&#9733; Haven Only";
+}
+
 function populateFilterOptions(rawSailings) {
-  const classOrder = ["Icon", "Oasis", "Quantum", "Freedom", "Voyager", "Radiance", "Vision"];
+  const classOrder = IS_NCL
+    ? ["Prima Plus", "Prima", "Breakaway Plus", "Breakaway", "Epic", "Jewel", "Dawn", "Sun", "Spirit", "Pride"]
+    : ["Icon", "Oasis", "Quantum", "Freedom", "Voyager", "Radiance", "Vision"];
   const classesSet = new Set();
   const portsMap = new Map();
   let minDate = null;
@@ -1192,6 +1335,7 @@ function populateFilterOptions(rawSailings) {
   document.querySelectorAll(".tier-checkbox").forEach((cb) => {
     cb.checked = state.filters.suiteTiers.has(cb.value);
   });
+  syncHavenOnlyButtonState();
 
   renderPortMultiselect();
   updateShipDropdown();
@@ -1220,7 +1364,7 @@ function renderPortMultiselect() {
   if (!listEl) return;
 
   // Sort Florida ports first, then alphabetically by port name
-  const flOrder = ["FLL", "MIA", "PCN", "TPA"];
+  const flOrder = ["FLL", "MIA", "PCN", "JAX", "TPA"];
   const entries = Array.from(state.allAvailablePorts.entries()).sort((a, b) => {
     const ia = flOrder.indexOf(a[0]);
     const ib = flOrder.indexOf(b[0]);
@@ -1323,9 +1467,11 @@ function updatePartyUI() {
 
   const noteEl = document.getElementById("party-note");
   if (effectiveRoomMode === "single_room_5p") {
-    noteEl.textContent =
-      `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
-      `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
+    noteEl.textContent = IS_NCL
+      ? `Showing ONLY 5+ occupancy Haven Villas / Family ${ITEMS_LABEL} for ${partyText}. ` +
+        `Prices are estimated from 3rd/4th guest fares — click through to NCL Vacation Builder to verify exact 5+ occupancy rates.`
+      : `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
+        `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
   } else if (effectiveRoomMode === "two_rooms") {
     const splits = getCandidateTwoRoomSplits(state.adults, state.children);
     const splitSummary = splits
@@ -1333,11 +1479,11 @@ function updatePartyUI() {
       .join(" or ");
     noteEl.textContent =
       `Showing lowest-price 2-Room Online Split for ${partyText} (automatically picks the cheapest room & guest split: ${splitSummary}). ` +
-      `Each row shows who goes in Room 1 & Room 2 and opens Royal's 2-room booking flow with that exact setup.`;
+      `Each row shows who goes in Room 1 & Room 2 and opens ${LINE_SHORT}'s 2-room booking flow with that exact setup.`;
   } else if (totalGuests > 2) {
     noteEl.textContent = `Showing single-room quad/family ${ITEMS_LOWER}s for ${partyText} (capped at 4 guests/room online). Kids Sail Free dates charge $0 base fare for 3rd/4th guests (taxes only).`;
   } else {
-    noteEl.textContent = `Showing double-occupancy ${ITEMS_LOWER} pricing for ${partyText} (incl. all port taxes & fees).`;
+    noteEl.textContent = `Showing ${totalGuests === 1 ? "solo" : "double-occupancy"} ${ITEMS_LOWER} pricing for ${partyText} (incl. all port taxes & fees).`;
   }
 }
 
@@ -1415,7 +1561,9 @@ function updateSummaryAndKpis(itineraries, sailings, tierCounts) {
   if (moreFiltersBadge) {
     const subParts = [];
     if (state.filters.shipClass !== "all") subParts.push(`${state.filters.shipClass}`);
-    if (state.filters.ship !== "all") subParts.push(state.filters.ship.replace(/ of the Seas/i, ""));
+    if (state.filters.ship !== "all") {
+      subParts.push(state.filters.ship.replace(/ of the Seas/i, "").replace(/^Norwegian /i, "NCL "));
+    }
     const portCount = state.filters.ports.size;
     if (portCount <= 3) {
       subParts.push(Array.from(state.filters.ports).join("/") || "0 Ports");
@@ -1431,8 +1579,14 @@ function updateSummaryAndKpis(itineraries, sailings, tierCounts) {
 
 function renderItinerariesView(itineraries) {
   const container = document.getElementById("itineraries-container");
-  const bookBtnLabel = IS_STATEROOMS ? "View Rooms on Royal &#8599;" : "View Suites on Royal &#8599;";
-  const colHeaderLabel = IS_STATEROOMS ? "Room Category &amp; Highlights" : "Suite Tier &amp; Specific Room";
+  const bookBtnLabel = IS_STATEROOMS
+    ? `View Rooms on ${LINE_SHORT} &#8599;`
+    : `View Suites on ${LINE_SHORT} &#8599;`;
+  const colHeaderLabel = IS_STATEROOMS
+    ? "Room Category &amp; Highlights"
+    : APP_MODE === "ncl-suites"
+    ? "Haven / Suite Tier &amp; Room"
+    : "Suite Tier &amp; Specific Room";
 
   const html = itineraries
     .map((itin) => {
@@ -1450,7 +1604,7 @@ function renderItinerariesView(itineraries) {
             <th scope="row" class="cell-date-book">
               <span class="date-badge">${escapeHtml(s.date)}</span>
               <div class="date-book-action">
-                <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn" title="Open this sailing directly on Royal Caribbean's Room Selection page">
+                <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn" title="Open this sailing directly on ${escapeHtml(LINE_NAME)}">
                   ${bookBtnLabel}
                 </a>
               </div>
@@ -1497,8 +1651,8 @@ function renderItinerariesView(itineraries) {
               </div>
               <div class="itin-pricing-bottom">
                 <div class="itin-card-actions" onclick="event.stopPropagation()">
-                  <a href="${escapeHtml(itin.lowest_royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn" title="Open lowest-priced date (${escapeHtml(itin.lowest_sail_date)}) on Royal Caribbean">
-                    Book ${escapeHtml(itin.lowest_sail_date)} on Royal &#8599;
+                  <a href="${escapeHtml(itin.lowest_royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn" title="Open lowest-priced date (${escapeHtml(itin.lowest_sail_date)}) on ${escapeHtml(LINE_NAME)}">
+                    Book ${escapeHtml(itin.lowest_sail_date)} on ${LINE_SHORT} &#8599;
                   </a>
                 </div>
                 <span class="expand-hint">${isExpanded ? "▲ Hide sailing dates" : `▼ View all ${itin.sailing_count} dates`}</span>
@@ -1534,7 +1688,9 @@ function renderItinerariesView(itineraries) {
 
 function renderSailingsView(sailings) {
   const tbody = document.getElementById("sailings-tbody");
-  const bookBtnLabel = IS_STATEROOMS ? "View Rooms on Royal &#8599;" : "View Suites on Royal &#8599;";
+  const bookBtnLabel = IS_STATEROOMS
+    ? `View Rooms on ${LINE_SHORT} &#8599;`
+    : `View Suites on ${LINE_SHORT} &#8599;`;
 
   tbody.innerHTML = sailings
     .map(
@@ -1542,7 +1698,7 @@ function renderSailingsView(sailings) {
       <tr>
         <th scope="row" class="cell-date">
           <span class="date-badge">${escapeHtml(s.date)}</span>
-          <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn mobile-only-book-btn" title="Open Royal Caribbean Room Selection">
+          <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn mobile-only-book-btn" title="Open ${escapeHtml(LINE_NAME)} Room Selection">
             ${bookBtnLabel}
           </a>
         </th>
@@ -1555,8 +1711,8 @@ function renderSailingsView(sailings) {
         <td class="cell-itin">
           <div class="cell-itin-name">${escapeHtml(s.itinerary_name)}</div>
           <div class="itin-code-row">
-            <span class="tax-breakdown" title="Royal Caribbean internal itinerary/package ID">ID: ${escapeHtml(s.itinerary_code)}</span>
-            <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn desktop-only-book-btn" title="Open Royal Caribbean Room Selection for this date and party size">
+            <span class="tax-breakdown" title="${escapeHtml(LINE_NAME)} itinerary/package ID">ID: ${escapeHtml(s.itinerary_code)}</span>
+            <a href="${escapeHtml(s.royal_url)}" target="_blank" rel="noopener noreferrer" class="royal-link-btn desktop-only-book-btn" title="Open ${escapeHtml(LINE_NAME)} Room Selection for this date and party size">
               ${bookBtnLabel}
             </a>
           </div>
@@ -1641,10 +1797,13 @@ function handleAddCustomPort() {
   const hintEl = document.getElementById("add-port-hint");
   if (!inputEl) return;
 
-  const rawCode = inputEl.value.trim().toUpperCase().replace(/[^A-Z]/g, "");
+  let rawCode = inputEl.value.trim().toUpperCase().replace(/[^A-Z]/g, "");
+  if (rawCode === "PCV") {
+    rawCode = "PCN";
+  }
   if (rawCode.length < 3) {
     if (hintEl) {
-      hintEl.textContent = "Please enter a valid 3-letter port code (e.g. TPA, GAL, SEA, BCN).";
+      hintEl.textContent = "Please enter a valid 3-letter port code (e.g. TPA, GAL, SEA, NYC).";
     }
     return;
   }
@@ -1660,10 +1819,11 @@ function handleAddCustomPort() {
   const info = state.allAvailablePorts.get(rawCode);
   if (hintEl) {
     if (info && info.count > 0) {
-      hintEl.textContent = `✓ Enabled ${portName} (${rawCode}) — ${info.count} suite sailings loaded.`;
+      hintEl.textContent = `✓ Enabled ${portName} (${rawCode}) — ${info.count} ${ITEMS_LOWER} sailings loaded.`;
     } else {
       const allCodes = Array.from(state.allAvailablePorts.keys()).join(",");
-      hintEl.textContent = `Added ${portName} (${rawCode}). Run: python tracker.py -p ${allCodes}`;
+      const cliHint = IS_NCL ? `python fetch_ncl.py --ports ${allCodes}` : `python tracker.py -p ${allCodes}`;
+      hintEl.textContent = `Added ${portName} (${rawCode}). Run: ${cliHint}`;
     }
   }
 
@@ -1819,7 +1979,7 @@ function bindEvents() {
     });
   });
 
-  // Suite Tier checkboxes (Sea, Sky, Star, Standard, Guarantee)
+  // Suite / Stateroom Tier checkboxes
   document.querySelectorAll(".tier-checkbox").forEach((cb) => {
     cb.addEventListener("change", () => {
       if (cb.checked) {
@@ -1827,10 +1987,35 @@ function bindEvents() {
       } else {
         state.filters.suiteTiers.delete(cb.value);
       }
+      syncHavenOnlyButtonState();
       saveStateToStorage();
       render();
     });
   });
+
+  // 1-Click "★ Haven Only" quick-filter toggle on NCL Suites page
+  const havenOnlyBtn = document.getElementById("haven-only-btn");
+  if (havenOnlyBtn) {
+    havenOnlyBtn.addEventListener("click", () => {
+      const tiers = state.filters.suiteTiers;
+      const isCurrentlyHavenOnly =
+        tiers.has("Haven") && !tiers.has("Suite") && !tiers.has("ClubBalcony");
+      const keepGuarantee = tiers.has("Guarantee");
+      if (isCurrentlyHavenOnly) {
+        state.filters.suiteTiers = new Set(DEFAULT_TIERS);
+        if (keepGuarantee) state.filters.suiteTiers.add("Guarantee");
+      } else {
+        state.filters.suiteTiers = new Set(["Haven"]);
+        if (keepGuarantee) state.filters.suiteTiers.add("Guarantee");
+      }
+      document.querySelectorAll(".tier-checkbox").forEach((cb) => {
+        cb.checked = state.filters.suiteTiers.has(cb.value);
+      });
+      syncHavenOnlyButtonState();
+      saveStateToStorage();
+      render();
+    });
+  }
 
   // Filter controls
   document.getElementById("filter-ship-class").addEventListener("change", (e) => {
@@ -1986,11 +2171,16 @@ async function init() {
       })}`;
     }
 
-    document.getElementById("meta-subtitle").textContent = IS_STATEROOMS
-      ? `Interactive explorer for Royal Caribbean Staterooms (Interior, Ocean View & Balcony) across 10 US & Caribbean Ports`
-      : `Interactive explorer for Royal Caribbean Suites (Sea, Sky, Star & Standard) across 10 US & Caribbean Ports`;
-
     populateFilterOptions(state.rawData.sailings || []);
+    const portTotalCount = state.allAvailablePorts.size || (IS_NCL ? 14 : 10);
+    document.getElementById("meta-subtitle").textContent =
+      APP_MODE === "ncl-suites"
+        ? `Interactive explorer for Norwegian Cruise Line — The Haven, Suites & Club Balcony across ${portTotalCount} US, Caribbean & Hawaii Ports`
+        : APP_MODE === "ncl-staterooms"
+        ? `Interactive explorer for Norwegian Cruise Line Staterooms (Inside, Studio, Oceanview & Balcony) across ${portTotalCount} US, Caribbean & Hawaii Ports`
+        : IS_STATEROOMS
+        ? `Interactive explorer for Royal Caribbean Staterooms (Interior, Ocean View & Balcony) across ${portTotalCount} US & Caribbean Ports`
+        : `Interactive explorer for Royal Caribbean Suites (Sea, Sky, Star & Standard) across ${portTotalCount} US & Caribbean Ports`;
     render();
   } catch (err) {
     banner.classList.remove("hidden");

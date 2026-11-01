@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta name="googlebot" content="noindex, nofollow" />
   <title>Stateroom Tracker | Royal Caribbean Interior, Ocean View &amp; Balcony</title>
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body data-mode="staterooms">
   <header class="site-header">
@@ -17,11 +17,17 @@
           <p class="subtitle" id="meta-subtitle">Loading Interior, Ocean View &amp; Balcony staterooms across 10 ports...</p>
         </div>
       </div>
-      <nav class="top-nav" aria-label="Tracker Switcher">
-        <a href="index.html" class="nav-pill">Home</a>
-        <a href="suites.html" class="nav-pill">Suites</a>
-        <a href="staterooms.html" class="nav-pill active">Staterooms</a>
-      </nav>
+      <div class="header-nav-group">
+        <div class="cruise-line-tabs" aria-label="Cruise Line Switcher">
+          <a href="staterooms.html" class="line-tab active" aria-current="page">Royal Caribbean</a>
+          <a href="ncl-staterooms.html" class="line-tab" title="Switch to Norwegian Cruise Line Staterooms">Norwegian (NCL)</a>
+        </div>
+        <nav class="top-nav" aria-label="Tracker Switcher">
+          <a href="index.html" class="nav-pill">Home</a>
+          <a href="suites.html" class="nav-pill">Suites</a>
+          <a href="staterooms.html" class="nav-pill active">Staterooms</a>
+        </nav>
+      </div>
       <div class="header-meta">
         <span class="pill pill-outline" id="party-pill">Party: --</span>
         <span class="pill pill-muted" id="updated-pill">Updated: --</span>
@@ -317,11 +323,11 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>Powered by Royal Caribbean GraphQL Stateroom Tracker &bull; <a href="index.html" style="color:var(--accent);text-decoration:none">Home</a> &bull; <a href="suites.html" style="color:var(--accent);text-decoration:none">Switch to Royal Suites</a></p>
+      <p>Powered by Royal Caribbean GraphQL Stateroom Tracker &bull; <a href="index.html" style="color:var(--accent);text-decoration:none">Home</a> &bull; <a href="suites.html" style="color:var(--accent);text-decoration:none">Switch to Royal Suites</a> &bull; <a href="ncl-staterooms.html" style="color:var(--accent);text-decoration:none">Switch to Norwegian (NCL)</a></p>
     </div>
   </footer>
 
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
 
