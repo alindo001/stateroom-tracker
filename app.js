@@ -137,7 +137,7 @@ function loadStateFromStorage() {
       state.children = saved.children;
     }
     if (saved.roomMode === "single_room" || saved.roomMode === "two_rooms" || saved.roomMode === "single_room_5p") {
-      state.roomMode = IS_STATEROOMS && saved.roomMode === "single_room_5p" ? "two_rooms" : saved.roomMode;
+      state.roomMode = APP_MODE === "staterooms" && saved.roomMode === "single_room_5p" ? "two_rooms" : saved.roomMode;
     }
     if (Array.isArray(saved.customPorts)) {
       state.customPorts = new Map(saved.customPorts);
@@ -568,6 +568,30 @@ function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
   const shipClass = raw.ship_class || "";
 
   if (Array.isArray(tierObj.rooms) && tierObj.rooms.length > 0) {
+    const exactKey = `pricing_${totalGuests}`;
+    const exactRooms = tierObj.rooms.filter((r) => r[exactKey] && !r.guarantee);
+    if (exactRooms.length > 0) {
+      // Exact live single-room fares for 5-8 guests (NCL Family Oceanview/Balcony, Haven Villas, Owner's Suites)
+      exactRooms.sort((a, b) => a[exactKey].cabin_total - b[exactKey].cabin_total);
+      const chosen = exactRooms[0];
+      return {
+        roomName: chosen.display_name,
+        royalType: chosen.royal_type,
+        p2: chosen.pricing_2a || tierObj.pricing_2a,
+        p4: chosen.pricing_quad || tierObj.pricing_quad,
+        pExact: chosen[exactKey],
+        maxGuests: chosen.max_guests || totalGuests,
+        pullmanWarning: false,
+        otherRooms: exactRooms
+          .slice(1, 8)
+          .map((o) => `${o.display_name}: $${Math.round(o[exactKey].cabin_total).toLocaleString("en-US")}`)
+          .join(" • "),
+      };
+    }
+    if (IS_NCL && tierObj.rooms.some((r) => Object.keys(r).some((k) => /^pricing_[5-8]$/.test(k)))) {
+      // This sailing has live 5+ guest fares, but none for this party size in this tier
+      return null;
+    }
     const valid = tierObj.rooms.filter((r) => {
       if (!r.pricing_quad) return false;
       const occ = getRoomOccupancyInfo(r.display_name || r.code, shipClass);
@@ -674,6 +698,7 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let occupancyWarning = "";
   let twoRoomSplitNote = "";
   let isTwoRooms = effectiveRoomMode === "two_rooms";
+  let exact5p = null;
 
   // Filter Guarantee tier's rooms to match checked parent categories when specific categories are selected
   const guarParentMap =
@@ -717,7 +742,11 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     p4 = capRoom.p4;
     customRoomName = capRoom.roomName;
     customOtherRooms = capRoom.otherRooms;
-    if (capRoom.pullmanWarning) {
+    if (capRoom.royalType) customRoyalType = capRoom.royalType;
+    exact5p = capRoom.pExact || null;
+    if (capRoom.pExact) {
+      occupancyWarning = "";
+    } else if (capRoom.pullmanWarning) {
       occupancyWarning =
         `Phone Estimate Only (Up to 5 Guests): Select cabins only have a 5th Pullman bed — this room may or may not accommodate 5 guests on this sailing. Calling ${LINE_NAME} is required.`;
     } else if (IS_NCL) {
@@ -728,7 +757,7 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     }
   }
 
-  if (totalGuests > 2 && !isTwoRooms && !p4) {
+  if (totalGuests > 2 && !isTwoRooms && !p4 && !exact5p) {
     return null;
   }
   if (totalGuests <= 2 && tierObj?.is_live_exact && !p2) {
@@ -902,6 +931,11 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     twoRoomSplitNote =
       `Room 1 (${r0Label}) — ${room1Name}: ${formatMoney(bestCombo.r1.total)} (${formatMoney(bestCombo.r1.pp)}/pp) • ` +
       `Room 2 (${r1Label}) — ${room2Name}: ${formatMoney(bestCombo.r2.total)} (${formatMoney(bestCombo.r2.pp)}/pp)`;
+  } else if (totalGuests > 4 && effectiveRoomMode === "single_room_5p" && exact5p) {
+    // Exact live single-room fare for this party size (no estimate needed)
+    cabinBase = exact5p.cabin_base;
+    cabinTaxes = exact5p.cabin_taxes;
+    cabinDiscount = exact5p.cabin_discount || (p4 && p4.cabin_discount) || discount2Guests;
   } else if (totalGuests > 4 && effectiveRoomMode === "single_room_5p" && p4) {
     // Use the 5+ guest suite's exact 4-guest price as baseline and add the 5th+ guest fare
     const extraBeyond4 = Math.max(0, totalGuests - 4);
@@ -1468,8 +1502,8 @@ function updatePartyUI() {
   const noteEl = document.getElementById("party-note");
   if (effectiveRoomMode === "single_room_5p") {
     noteEl.textContent = IS_NCL
-      ? `Showing ONLY 5+ occupancy Haven Villas / Family ${ITEMS_LABEL} for ${partyText}. ` +
-        `Prices are estimated from 3rd/4th guest fares — click through to NCL Vacation Builder to verify exact 5+ occupancy rates.`
+      ? `Showing ONLY 1-room options that sleep ${totalGuests}+ (Family Oceanview/Balcony, Haven Family Villas, Owner's Suites & Garden Villas) for ${partyText}. ` +
+        `Prices use NCL's exact online ${totalGuests}-guest fares — bookable as 1 room in NCL Vacation Builder.`
       : `Showing ONLY 5+ occupancy suites for ${partyText} (1-Room Phone Estimate). ` +
         `Prices are an estimate based on 3rd/4th guest rates — calling Royal Caribbean is required to book 5+ guests in 1 room.`;
   } else if (effectiveRoomMode === "two_rooms") {

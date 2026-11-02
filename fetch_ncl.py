@@ -1208,11 +1208,17 @@ def sanitize_title(title: str) -> str:
     )
 
 
+SUBTYPE_GUEST_COUNTS = (2, 4, 5, 6, 7, 8)
+LARGE_PARTY_GUEST_COUNTS = (5, 6, 7, 8)
+
+
 def fetch_subtype_batch(pkg_batch: list[str]) -> dict[str, dict[int, list[dict]]]:
     filters = []
     for pkg in pkg_batch:
-        filters.append({"filterId": f"{pkg}_2", "packageId": str(pkg), "numberOfGuests": 2})
-        filters.append({"filterId": f"{pkg}_4", "packageId": str(pkg), "numberOfGuests": 4})
+        # 2 & 4 guests drive standard pricing; 5-8 guests capture exact single-room fares for
+        # Family Oceanview/Balcony, Haven Family Villas, Owner's Suites & Garden Villas.
+        for g in SUBTYPE_GUEST_COUNTS:
+            filters.append({"filterId": f"{pkg}_{g}", "packageId": str(pkg), "numberOfGuests": g})
 
     data = request_json(
         "POST",
@@ -1235,7 +1241,9 @@ def fetch_subtype_batch(pkg_batch: list[str]) -> dict[str, dict[int, list[dict]]
     return out
 
 
-def apply_subtypes_to_sailing(sailing: dict, stps_2: list[dict], stps_4: list[dict], is_suites_mode: bool) -> bool:
+def apply_subtypes_to_sailing(
+    sailing: dict, stps_2: list[dict], stps_4: list[dict], is_suites_mode: bool, large_party_stps: dict | None = None
+) -> bool:
     if not stps_2 and not stps_4:
         return False
 
@@ -1295,6 +1303,30 @@ def apply_subtypes_to_sailing(sailing: dict, stps_2: list[dict], stps_4: list[di
     ingest(stps_2, 2)
     ingest(stps_4, 4)
 
+    # Attach exact 5-8 guest single-room fares to categories that can sleep that many
+    for g, stps_g in (large_party_stps or {}).items():
+        for stp in stps_g or []:
+            ncl_type = (stp.get("code") or "").upper()
+            base_tier = cat_to_tier.get(ncl_type)
+            if not base_tier:
+                continue
+            for sp in stp.get("stateroomsPricing") or []:
+                if sp.get("isSoldOut") or sp.get("price") is None:
+                    continue
+                sr = sp.get("stateroom") or {}
+                cat_ids = sr.get("categoryIds") or []
+                code = str(cat_ids[0]).upper() if cat_ids else ncl_type[:2]
+                is_guar = bool(sr.get("isSailAway")) or code in ("IX", "OX", "BX", "MX", "SX", "HX")
+                rec = subtype_map.get(("Guarantee" if is_guar else base_tier, code))
+                if rec is None:
+                    continue
+                pe = make_price_entry(sp.get("price"), None, tax_pp, g)
+                if not pe:
+                    continue
+                key = f"pricing_{g}"
+                if rec.get(key) is None or pe["cabin_total"] < rec[key]["cabin_total"]:
+                    rec[key] = pe
+                rec["max_guests"] = max(rec["max_guests"], g)
     if not subtype_map:
         return False
 
@@ -1408,7 +1440,7 @@ def enrich_ncl_subtypes(
             pkg = str(s.get("package_code") or "")
             if pkg in pkg_results:
                 p_entry = pkg_results[pkg]
-                if apply_subtypes_to_sailing(s, p_entry.get(2, []), p_entry.get(4, []), is_suites_mode=True):
+                if apply_subtypes_to_sailing(s, p_entry.get(2, []), p_entry.get(4, []), is_suites_mode=True, large_party_stps={g: p_entry.get(g, []) for g in LARGE_PARTY_GUEST_COUNTS}):
                     cnt_s += 1
                     suites_shard_map[pkg] = s["tiers"]
         print(f"Applied exact NCL Suite/Haven subtypes to {cnt_s} sailings.")
@@ -1427,7 +1459,7 @@ def enrich_ncl_subtypes(
             pkg = str(s.get("package_code") or "")
             if pkg in pkg_results:
                 p_entry = pkg_results[pkg]
-                if apply_subtypes_to_sailing(s, p_entry.get(2, []), p_entry.get(4, []), is_suites_mode=False):
+                if apply_subtypes_to_sailing(s, p_entry.get(2, []), p_entry.get(4, []), is_suites_mode=False, large_party_stps={g: p_entry.get(g, []) for g in LARGE_PARTY_GUEST_COUNTS}):
                     cnt_r += 1
                     rooms_shard_map[pkg] = s["tiers"]
         print(f"Applied exact NCL Stateroom subtypes to {cnt_r} sailings.")
