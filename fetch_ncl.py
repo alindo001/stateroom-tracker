@@ -1368,8 +1368,12 @@ def apply_subtypes_to_sailing(
         t_obj["rooms"] = rooms_list
         t_obj["is_live_exact"] = True
         t_obj["room_name"] = lead_r["display_name"]
+        t_obj["room_code"] = lead_r.get("code")
+        t_obj["stateroom_code"] = lead_r.get("stateroom_code")
         if best_2a:
             t_obj["room_name_2a"] = best_2a["display_name"]
+            t_obj["room_code_2a"] = best_2a.get("code")
+            t_obj["stateroom_code_2a"] = best_2a.get("stateroom_code")
             t_obj["pricing_2a"] = best_2a["pricing_2a"]
             others_2a = [r for r in r2_candidates if r["code"] != best_2a["code"]][:10]
             t_obj["other_rooms_2a"] = " • ".join(
@@ -1377,6 +1381,8 @@ def apply_subtypes_to_sailing(
             )
         if best_4:
             t_obj["room_name_quad"] = best_4["display_name"]
+            t_obj["room_code_quad"] = best_4.get("code")
+            t_obj["stateroom_code_quad"] = best_4.get("stateroom_code")
             t_obj["pricing_quad"] = best_4["pricing_quad"]
             others_4 = [r for r in r4_candidates if r["code"] != best_4["code"]][:10]
             t_obj["other_rooms_quad"] = " • ".join(
