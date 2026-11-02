@@ -514,6 +514,16 @@ body {
   margin-top: 0.15rem;
 }
 
+.alt-room-link {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.alt-room-link:hover {
+  color: #7dd3fc;
+}
+
 .cell-more-details {
   margin-top: 0.25rem;
 }

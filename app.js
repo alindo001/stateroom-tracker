@@ -344,6 +344,8 @@ function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp
     return {
       roomName: r.display_name,
       royalType: r.royal_type,
+      roomCode: r.code,
+      stateroomCode: r.stateroom_code || null,
       base,
       taxes,
       total,
@@ -362,6 +364,8 @@ function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp
       return {
         roomName: r.display_name,
         royalType: r.royal_type,
+        roomCode: r.code,
+        stateroomCode: r.stateroom_code || null,
         base: base3,
         taxes,
         total: total3,
@@ -380,6 +384,8 @@ function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp
     return {
       roomName: r.display_name,
       royalType: r.royal_type,
+      roomCode: r.code,
+      stateroomCode: r.stateroom_code || null,
       base,
       taxes,
       total,
@@ -403,6 +409,8 @@ function computeSingleRoomSubtypeCost(r, guestCount, isKsfPromo, fallbackExtraPp
   return {
     roomName: r.display_name,
     royalType: r.royal_type,
+    roomCode: r.code,
+    stateroomCode: r.stateroom_code || null,
     base: base3,
     taxes,
     total: total3,
@@ -420,9 +428,38 @@ function getSuiteTierCellHtml(sailing) {
   const twoRoomNote = sailing.two_room_split_note || "";
   const occWarn = sailing.occupancy_warning || "";
 
-  const otherPrefix = otherRooms.toLowerCase().startsWith("also")
-    ? escapeHtml(otherRooms)
-    : `Also in ${escapeHtml(getTierDisplayLabel(tierKey))}: ${escapeHtml(otherRooms)}`;
+  let otherRoomsHtml = "";
+  if (otherRooms) {
+    if (IS_NCL && !sailing.is_two_rooms) {
+      const parts = otherRooms.split("•").map((s) => s.trim()).filter(Boolean);
+      const itemsHtml = parts
+        .map((part) => {
+          const m = part.match(/\(([A-Z0-9]+)\)/);
+          if (m) {
+            const catCode = m[1];
+            const url = buildNclBookingUrl(
+              sailing,
+              state.adults,
+              state.children,
+              sailing.royal_type || "HAVEN",
+              false,
+              null,
+              null,
+              catCode,
+              null
+            );
+            return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="alt-room-link" title="Select ${escapeHtml(part)} on NCL">${escapeHtml(part)} ↗</a>`;
+          }
+          return escapeHtml(part);
+        })
+        .join(" • ");
+      otherRoomsHtml = `Also in ${escapeHtml(getTierDisplayLabel(tierKey))}: ${itemsHtml}`;
+    } else {
+      otherRoomsHtml = otherRooms.toLowerCase().startsWith("also")
+        ? escapeHtml(otherRooms)
+        : `Also in ${escapeHtml(getTierDisplayLabel(tierKey))}: ${escapeHtml(otherRooms)}`;
+    }
+  }
 
   const otherCount = otherRooms ? otherRooms.split("•").length : 0;
   const detailsLabel = otherRooms
@@ -443,7 +480,7 @@ function getSuiteTierCellHtml(sailing) {
         ? `<details class="cell-more-details">
             <summary class="cell-more-summary">${detailsLabel}</summary>
             <div class="cell-more-body">
-              ${otherRooms ? `<span class="suite-other-rooms">${otherPrefix}</span>` : ""}
+              ${otherRooms ? `<span class="suite-other-rooms">${otherRoomsHtml}</span>` : ""}
               ${amenities ? `<span class="amenities-sub">${escapeHtml(amenities)}</span>` : ""}
             </div>
           </details>`
@@ -519,7 +556,17 @@ function buildRoyalSuiteUrl(raw, adults, children, royalType = "DELUXE", isTwoRo
   return `https://www.royalcaribbean.com/room-selection/type-and-subtype?${params.toString()}`;
 }
 
-function buildNclBookingUrl(raw, adults, children, nclType = "BALCONY", isTwoRooms = false, customSplit = null, r1NclType = null) {
+function buildNclBookingUrl(
+  raw,
+  adults,
+  children,
+  nclType = "BALCONY",
+  isTwoRooms = false,
+  customSplit = null,
+  r1NclType = null,
+  roomCode = null,
+  stateroomCode = null
+) {
   const totalGuests = (Number(adults) || 2) + (Number(children) || 0);
   const r0Type = nclType || (IS_STATEROOMS ? "BALCONY" : "HAVEN");
   const r1Type = r1NclType || r0Type;
@@ -536,19 +583,32 @@ function buildNclBookingUrl(raw, adults, children, nclType = "BALCONY", isTwoRoo
     params.append("guests", String(split.room2Total));
     params.append("stateroomTypeCode", r0Type);
     params.append("stateroomTypeCode", r1Type);
-  } else {
-    const effectiveMode = getEffectiveRoomMode(totalGuests);
-    const guestParam = effectiveMode === "single_room_5p" ? totalGuests : Math.min(4, Math.max(1, totalGuests));
-    params.set("guests", String(guestParam));
-    params.set("stateroomTypeCode", r0Type);
+    return `https://www.ncl.com/vacation-builder?${params.toString()}`;
+  }
+
+  const effectiveMode = getEffectiveRoomMode(totalGuests);
+  const guestParam = effectiveMode === "single_room_5p" ? totalGuests : Math.min(4, Math.max(1, totalGuests));
+  params.set("guests", String(guestParam));
+  params.set("stateroomTypeCode", r0Type);
+
+  const pricedCat = roomCode || raw.priced_category_code || raw.room_code || null;
+  const stateroomModel = stateroomCode || raw.stateroom_code || null;
+
+  if (pricedCat) {
+    params.set("pricedCategoryCode", pricedCat);
+    if (stateroomModel) {
+      params.set("stateroomCode", stateroomModel);
+    }
+    params.set("gateway", "NONE");
+    return `https://www.ncl.com/vacation-builder/planning/stateroom?${params.toString()}`;
   }
 
   return `https://www.ncl.com/vacation-builder?${params.toString()}`;
 }
 
-function buildBookingUrl(raw, adults, children, roomType, isTwoRooms = false, customSplit = null, r1RoomType = null) {
+function buildBookingUrl(raw, adults, children, roomType, isTwoRooms = false, customSplit = null, r1RoomType = null, roomCode = null, stateroomCode = null) {
   if (IS_NCL || raw.cruise_line === "NCL") {
-    return buildNclBookingUrl(raw, adults, children, roomType, isTwoRooms, customSplit, r1RoomType);
+    return buildNclBookingUrl(raw, adults, children, roomType, isTwoRooms, customSplit, r1RoomType, roomCode, stateroomCode);
   }
   return buildRoyalSuiteUrl(raw, adults, children, roomType, isTwoRooms, customSplit, r1RoomType);
 }
@@ -577,6 +637,8 @@ function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
       return {
         roomName: chosen.display_name,
         royalType: chosen.royal_type,
+        roomCode: chosen.code,
+        stateroomCode: chosen.stateroom_code || null,
         p2: chosen.pricing_2a || tierObj.pricing_2a,
         p4: chosen.pricing_quad || tierObj.pricing_quad,
         pExact: chosen[exactKey],
@@ -604,6 +666,9 @@ function findCapable5PlusRoomForTier(raw, tierObj, totalGuests) {
     const occ = getRoomOccupancyInfo(chosen.display_name || chosen.code, shipClass);
     return {
       roomName: chosen.display_name,
+      royalType: chosen.royal_type,
+      roomCode: chosen.code,
+      stateroomCode: chosen.stateroom_code || null,
       p2: chosen.pricing_2a || tierObj.pricing_2a,
       p4: chosen.pricing_quad,
       maxGuests: chosen.max_guests || occ.maxGuests,
@@ -693,6 +758,8 @@ function computeTierCandidate(raw, tierKey, adults, children) {
   let p2 = tierObj ? tierObj.pricing_2a : raw.pricing_2a;
   let p4 = tierObj ? tierObj.pricing_quad : raw.pricing_quad;
   let customRoomName = null;
+  let customRoomCode = null;
+  let customStateroomCode = null;
   let customOtherRooms = null;
   let customRoyalType = null;
   let occupancyWarning = "";
@@ -743,6 +810,8 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     customRoomName = capRoom.roomName;
     customOtherRooms = capRoom.otherRooms;
     if (capRoom.royalType) customRoyalType = capRoom.royalType;
+    if (capRoom.roomCode) customRoomCode = capRoom.roomCode;
+    if (capRoom.stateroomCode) customStateroomCode = capRoom.stateroomCode;
     exact5p = capRoom.pExact || null;
     if (capRoom.pExact) {
       occupancyWarning = "";
@@ -955,6 +1024,8 @@ function computeTierCandidate(raw, tierKey, adults, children) {
       cabinDiscount = bestSingle.discount;
       customRoomName = bestSingle.roomName;
       customRoyalType = bestSingle.royalType || customRoyalType;
+      customRoomCode = bestSingle.roomCode || null;
+      customStateroomCode = bestSingle.stateroomCode || null;
     } else {
       const extraGuests = Math.max(0, totalGuests - 2);
       cabinBase =
@@ -1004,12 +1075,19 @@ function computeTierCandidate(raw, tierKey, adults, children) {
     tierObj?.royal_type ||
     (IS_NCL ? (IS_STATEROOMS ? "BALCONY" : "HAVEN") : IS_STATEROOMS ? "BALCONY" : "DELUXE");
 
+  if (!customRoomCode && roomName) {
+    const m = roomName.match(/\(([A-Z0-9]+)\)$/);
+    if (m) customRoomCode = m[1];
+  }
+
   return {
     active_tier: tierKey,
     royal_type: royalType,
     royal_type_room2: customRoyalTypeRoom2 || royalType,
     two_room_split: chosenTwoRoomSplit,
     room_name: roomName,
+    room_code: customRoomCode || null,
+    stateroom_code: customStateroomCode || null,
     other_rooms: otherRooms,
     amenities: amenities,
     is_live_exact: isLiveExact,
@@ -1064,7 +1142,9 @@ function computeSailingForParty(raw, adults, children, selectedTiers) {
     best.royal_type,
     best.is_two_rooms,
     best.two_room_split,
-    best.royal_type_room2
+    best.royal_type_room2,
+    best.room_code,
+    best.stateroom_code
   );
 
   return {

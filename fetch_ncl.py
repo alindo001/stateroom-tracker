@@ -1275,6 +1275,8 @@ def apply_subtypes_to_sailing(
                 target_tier = "Guarantee" if is_guar else base_tier
                 disp = f"{title} ({code})" if f"({code})" not in title else title
 
+                stateroom_model_code = sr.get("code") or ""
+
                 key = (target_tier, code)
                 rec = subtype_map.get(key)
                 if rec is None:
@@ -1283,6 +1285,7 @@ def apply_subtypes_to_sailing(
                         "name": title,
                         "display_name": disp,
                         "royal_type": ncl_type,
+                        "stateroom_code": stateroom_model_code,
                         "guarantee": is_guar,
                         "max_guests": cap,
                         "pricing_2a": None,
@@ -1291,6 +1294,8 @@ def apply_subtypes_to_sailing(
                     subtype_map[key] = rec
                 else:
                     rec["max_guests"] = max(rec["max_guests"], cap)
+                    if stateroom_model_code and not rec.get("stateroom_code"):
+                        rec["stateroom_code"] = stateroom_model_code
 
                 pe = make_price_entry(sp.get("price"), None, tax_pp, guests)
                 if guests == 2 and pe:
