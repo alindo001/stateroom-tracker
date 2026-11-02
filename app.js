@@ -28,8 +28,6 @@ const STORAGE_KEY =
     : IS_STATEROOMS
     ? "rc_stateroom_tracker_prefs_v1"
     : "rc_suite_tracker_prefs_v1";
-
-let nclStateroomModels = {};
 const DATA_URL =
   APP_MODE === "ncl-suites"
     ? "./data/ncl_suites.json"
@@ -439,21 +437,6 @@ function getSuiteTierCellHtml(sailing) {
           const m = part.match(/\(([A-Z0-9]+)\)/);
           if (m) {
             const catCode = m[1];
-            let altStateroomCode = null;
-            const tRooms = sailing.tiers?.[tierKey]?.rooms;
-            if (Array.isArray(tRooms)) {
-              const matchedRoom = tRooms.find((r) => r.code === catCode);
-              if (matchedRoom && matchedRoom.stateroom_code) {
-                altStateroomCode = matchedRoom.stateroom_code;
-              }
-            }
-            if (!altStateroomCode && IS_NCL) {
-              const shipKey = (sailing.ship_code || "").toUpperCase();
-              altStateroomCode =
-                (nclStateroomModels[shipKey] && nclStateroomModels[shipKey][catCode]) ||
-                (nclStateroomModels.GENERIC && nclStateroomModels.GENERIC[catCode]) ||
-                null;
-            }
             const url = buildNclBookingUrl(
               sailing,
               state.adults,
@@ -463,7 +446,7 @@ function getSuiteTierCellHtml(sailing) {
               null,
               null,
               catCode,
-              altStateroomCode
+              null
             );
             return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="alt-room-link" title="Select ${escapeHtml(part)} on NCL">${escapeHtml(part)} ↗</a>`;
           }
@@ -609,14 +592,7 @@ function buildNclBookingUrl(
   params.set("stateroomTypeCode", r0Type);
 
   const pricedCat = roomCode || raw.priced_category_code || raw.room_code || null;
-  let stateroomModel = stateroomCode || raw.stateroom_code || null;
-  if (!stateroomModel && pricedCat && IS_NCL) {
-    const shipKey = (raw.ship_code || "").toUpperCase();
-    stateroomModel =
-      (nclStateroomModels[shipKey] && nclStateroomModels[shipKey][pricedCat]) ||
-      (nclStateroomModels.GENERIC && nclStateroomModels.GENERIC[pricedCat]) ||
-      null;
-  }
+  const stateroomModel = stateroomCode || raw.stateroom_code || null;
 
   if (pricedCat) {
     params.set("pricedCategoryCode", pricedCat);
@@ -2311,15 +2287,6 @@ async function init() {
       throw new Error(`HTTP ${resp.status}: Could not load ${DATA_URL}`);
     }
     state.rawData = await resp.json();
-
-    if (IS_NCL) {
-      try {
-        const mResp = await fetch("./data/ncl_stateroom_models.json", { cache: "no-store" });
-        if (mResp.ok) {
-          nclStateroomModels = await mResp.json();
-        }
-      } catch (_) {}
-    }
 
     if (state.rawData.updated_at) {
       const dt = new Date(state.rawData.updated_at);
