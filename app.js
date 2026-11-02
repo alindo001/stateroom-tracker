@@ -1129,7 +1129,18 @@ function getFilteredSailingsAndItineraries() {
       continue;
     }
     if (searchLower) {
-      const haystack = `${raw.ship} ${raw.ship_class} ${raw.itinerary_name} ${raw.itinerary_code} ${raw.port} ${raw.port_code}`.toLowerCase();
+      let roomNames = "";
+      if (raw.tiers) {
+        for (const t of Object.values(raw.tiers)) {
+          if (Array.isArray(t.rooms)) {
+            for (const r of t.rooms) {
+              roomNames += ` ${r.display_name || ""} ${r.code || ""}`;
+            }
+          }
+          if (t.other_rooms) roomNames += ` ${t.other_rooms}`;
+        }
+      }
+      const haystack = `${raw.ship} ${raw.ship_class} ${raw.itinerary_name} ${raw.itinerary_code} ${raw.port} ${raw.port_code} ${roomNames}`.toLowerCase();
       if (!haystack.includes(searchLower)) {
         continue;
       }
